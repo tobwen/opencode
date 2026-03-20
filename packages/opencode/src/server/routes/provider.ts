@@ -9,9 +9,6 @@ import { ProviderID } from "../../provider/schema"
 import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
-import { Log } from "../../util/log"
-
-const log = Log.create({ service: "server" })
 
 export const ProviderRoutes = lazy(() =>
   new Hono()
@@ -56,10 +53,35 @@ export const ProviderRoutes = lazy(() =>
           mapValues(filteredProviders, (x) => Provider.fromModelsDevProvider(x)),
           connected,
         )
+
+        // Füge Custom Provider aus der Config hinzu
+        for (const [id, provider] of Object.entries(config.provider ?? {})) {
+          // Nur Custom Provider die nicht in ModelsDev sind
+          const isBuiltIn = Object.keys(allProviders).includes(id)
+
+          // Nur OpenAI-basierte Provider die mit "openai" beginnen (nicht "openai" selbst)
+          const isOpenAIBased = id !== "openai" && id.startsWith("openai")
+
+          if (!isBuiltIn && isOpenAIBased) {
+            if ((enabled ? enabled.has(id) : true) && !disabled.has(id)) {
+              providers[id] = {
+                id: ProviderID.make(id),
+                source: "custom",
+                name: (provider as any).name || id,
+                env: [],
+                options: {},
+                models: {},
+              }
+            }
+          }
+        }
+
         return c.json({
           all: Object.values(providers),
-          default: mapValues(providers, (item) => Provider.sort(Object.values(item.models))[0].id),
-          connected: Object.keys(connected),
+          default: Provider.sort(
+            Object.values(providers).filter((p) => p.models && Object.keys(p.models).length > 0),
+          )[0]?.id,
+          connected: Object.keys(providers),
         })
       },
     )
@@ -112,16 +134,14 @@ export const ProviderRoutes = lazy(() =>
         "json",
         z.object({
           method: z.number().meta({ description: "Auth method index" }),
-          inputs: z.record(z.string(), z.string()).optional().meta({ description: "Prompt inputs" }),
         }),
       ),
       async (c) => {
         const providerID = c.req.valid("param").providerID
-        const { method, inputs } = c.req.valid("json")
+        const { method } = c.req.valid("json")
         const result = await ProviderAuth.authorize({
           providerID,
           method,
-          inputs,
         })
         return c.json(result)
       },

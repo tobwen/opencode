@@ -1,8 +1,9 @@
 import type { AuthOuathResult } from "@opencode-ai/plugin"
 import { NamedError } from "@opencode-ai/util/error"
 import * as Auth from "@/auth/effect"
+import { Config } from "@/config/config"
 import { ProviderID } from "./schema"
-import { Array as Arr, Effect, Layer, Record, Result, ServiceMap, Struct } from "effect"
+import { Array as Arr, Effect, Layer, Record, Result, ServiceMap } from "effect"
 import z from "zod"
 
 export namespace ProviderAuth {
@@ -119,7 +120,7 @@ export namespace ProviderAuth {
       const pending = new Map<ProviderID, AuthOuathResult>()
 
       const methods = Effect.fn("ProviderAuth.methods")(function* () {
-        return Record.map(hooks, (item) =>
+        const out = Record.map(hooks, (item) =>
           item.methods.map(
             (method): Method => ({
               type: method.type,
@@ -145,6 +146,20 @@ export namespace ProviderAuth {
             }),
           ),
         )
+
+        const cfg = yield* Effect.promise(() => Config.get())
+        for (const id of Object.keys(cfg.provider ?? {})) {
+          if (id === "openai") continue
+          if (!id.startsWith("openai")) continue
+          const pid = ProviderID.make(id)
+          if (out[pid]) continue
+          out[pid] = [
+            { type: "oauth", label: "Browser" },
+            { type: "oauth", label: "Headless" },
+          ]
+        }
+
+        return out
       })
 
       const authorize = Effect.fn("ProviderAuth.authorize")(function* (input: {
@@ -152,14 +167,15 @@ export namespace ProviderAuth {
         method: number
         inputs?: Record<string, string>
       }) {
-        const method = hooks[input.providerID].methods[input.method]
+        const method = hooks[input.providerID]?.methods[input.method]
+        if (!method) return
         if (method.type !== "oauth") return
 
         if (method.prompts && input.inputs) {
           for (const prompt of method.prompts) {
             if (prompt.type === "text" && prompt.validate && input.inputs[prompt.key] !== undefined) {
-              const error = prompt.validate(input.inputs[prompt.key])
-              if (error) return yield* Effect.fail(new ValidationFailed({ field: prompt.key, message: error }))
+              const err = prompt.validate(input.inputs[prompt.key])
+              if (err) return yield* Effect.fail(new ValidationFailed({ field: prompt.key, message: err }))
             }
           }
         }

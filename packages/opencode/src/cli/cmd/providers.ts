@@ -16,6 +16,52 @@ import { text } from "node:stream/consumers"
 
 type PluginAuth = NonNullable<Hooks["auth"]>
 
+// Validiere Custom Provider-ID für OpenAI-basierte Provider
+function validateOpenAIProviderID(id: string): string | undefined {
+  // Erhalte nur OpenAI-basierte Provider die mit "openai" beginnen
+  if (id.startsWith("openai")) {
+    const suffix = id.replace("openai", "")
+
+    // Erlaube leeren Suffix (exakter "openai" Provider)
+    if (suffix === "") return undefined
+
+    // Erlaube: Kleinbuchstaben, Zahlen, Bindestriche, Unterstriche nach dem Präfix
+    if (suffix.match(/^[a-z0-9_-]+$/)) {
+      return undefined // Valid
+    }
+
+    return "Must start with 'openai' followed by lowercase letters, numbers, hyphens, or underscores (e.g., openai_work, openai-work, openai_personal)"
+  }
+
+  // Erlaube exakten "openai" Provider
+  if (id === "openai") return undefined
+
+  return "For OpenAI-based providers, must start with 'openai' (e.g., openai_work, openai-work, openai.personal)"
+}
+
+// Custom Provider aus Config lesen
+async function getConfigProviders(): Promise<Array<{ id: string; name: string }>> {
+  const config = await Config.get()
+  const modelsDev = await ModelsDev.get()
+
+  const customProviders = Object.entries(config.provider ?? {})
+    .filter(([id, provider]) => {
+      // Nur Provider die nicht in ModelsDev sind
+      const isBuiltIn = Object.keys(modelsDev).includes(id)
+
+      // Nur OpenAI-basierte Provider die mit "openai" beginnen (nicht "openai" selbst)
+      const isOpenAIBased = id !== "openai" && id.startsWith("openai")
+
+      return !isBuiltIn && isOpenAIBased
+    })
+    .map(([id, provider]) => ({
+      id,
+      name: (provider as any).name || id,
+    }))
+
+  return customProviders
+}
+
 async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string, methodName?: string): Promise<boolean> {
   let index = 0
   if (methodName) {
@@ -46,13 +92,9 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string, 
   const inputs: Record<string, string> = {}
   if (method.prompts) {
     for (const prompt of method.prompts) {
-      if (prompt.when) {
-        const value = inputs[prompt.when.key]
-        if (value === undefined) continue
-        const matches = prompt.when.op === "eq" ? value === prompt.when.value : value !== prompt.when.value
-        if (!matches) continue
+      if (prompt.condition && !prompt.condition(inputs)) {
+        continue
       }
-      if (prompt.condition && !prompt.condition(inputs)) continue
       if (prompt.type === "select") {
         const value = await prompts.select({
           message: prompt.message,
@@ -336,6 +378,7 @@ export const ProvidersLoginCommand = cmd({
           enabled,
           providerNames: Object.fromEntries(Object.entries(config.provider ?? {}).map(([id, p]) => [id, p.name])),
         })
+        const configProviders = await getConfigProviders()
         const options = [
           ...pipe(
             providers,
@@ -349,10 +392,16 @@ export const ProvidersLoginCommand = cmd({
               value: x.id,
               hint: {
                 opencode: "recommended",
+                anthropic: "API key",
                 openai: "ChatGPT Plus/Pro or API key",
               }[x.id],
             })),
           ),
+          ...configProviders.map((x) => ({
+            label: x.name,
+            value: x.id,
+            hint: "config",
+          })),
           ...pluginProviders.map((x) => ({
             label: x.name,
             value: x.id,
@@ -387,21 +436,46 @@ export const ProvidersLoginCommand = cmd({
           provider = selected as string
         }
 
-        const plugin = await Plugin.list().then((x) => x.findLast((x) => x.auth?.provider === provider))
+        const plugin = await Plugin.list().then((x) =>
+          x.findLast((x) => {
+            // Exakte Übereinstimmung (z.B. "openai" matcht "openai")
+            if (x.auth?.provider === provider) return true
+
+            // Custom OpenAI Provider (startet mit "openai")
+            const isCustomOpenAI = provider !== "openai" && provider.startsWith("openai")
+            if (isCustomOpenAI && x.auth?.provider === "openai") return true
+
+            return false
+          }),
+        )
         if (plugin && plugin.auth) {
-          const handled = await handlePluginAuth({ auth: plugin.auth }, provider, args.method)
+          // Für Custom OpenAI Provider: Setze den Provider auf "openai" für das Plugin
+          const effectiveProvider = provider !== "openai" && provider.startsWith("openai") ? "openai" : provider
+          const handled = await handlePluginAuth({ auth: plugin.auth }, effectiveProvider, args.method)
           if (handled) return
         }
 
         if (provider === "other") {
           const custom = await prompts.text({
-            message: "Enter provider id",
-            validate: (x) => (x && x.match(/^[0-9a-z-]+$/) ? undefined : "a-z, 0-9 and hyphens only"),
+            message: "Enter provider id (e.g., openai_work, openai-work)",
+            placeholder: "openai_work",
+            validate: (x) => (x ? validateOpenAIProviderID(x) : "Required"),
           })
           if (prompts.isCancel(custom)) throw new UI.CancelledError()
           provider = custom.replace(/^@ai-sdk\//, "")
 
-          const customPlugin = await Plugin.list().then((x) => x.findLast((x) => x.auth?.provider === provider))
+          const customPlugin = await Plugin.list().then((x) =>
+            x.findLast((x) => {
+              // Exakte Übereinstimmung (z.B. "openai" matcht "openai")
+              if (x.auth?.provider === provider) return true
+
+              // Custom OpenAI Provider (startet mit "openai")
+              const isCustomOpenAI = provider !== "openai" && provider.startsWith("openai")
+              if (isCustomOpenAI && x.auth?.provider === "openai") return true
+
+              return false
+            }),
+          )
           if (customPlugin && customPlugin.auth) {
             const handled = await handlePluginAuth({ auth: customPlugin.auth }, provider, args.method)
             if (handled) return
