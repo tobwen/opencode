@@ -40,17 +40,14 @@ import { createGateway } from "@ai-sdk/gateway"
 import { createTogetherAI } from "@ai-sdk/togetherai"
 import { createPerplexity } from "@ai-sdk/perplexity"
 import { createVercel } from "@ai-sdk/vercel"
-import {
-  createGitLab,
-  VERSION as GITLAB_PROVIDER_VERSION,
-  isWorkflowModel,
-  discoverWorkflowModels,
-} from "gitlab-ai-provider"
+import { createGitLab, VERSION as GITLAB_PROVIDER_VERSION } from "@gitlab/gitlab-ai-provider"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { GoogleAuth } from "google-auth-library"
 import { ProviderTransform } from "./transform"
 import { Installation } from "../installation"
 import { ModelID, ProviderID } from "./schema"
+
+const DEFAULT_CHUNK_TIMEOUT = 120_000
 
 export namespace Provider {
   const log = Log.create({ service: "provider" })
@@ -109,6 +106,80 @@ export namespace Provider {
     })
   }
 
+  type Part = { type?: string; text?: string; thinking?: Part[] }
+
+  function normalizeParts(parts: Part[]) {
+    const has = parts.some((p) => p?.type === "thinking")
+    if (!has) return
+    const think = parts.filter((p) => p?.type === "thinking")
+    const text = parts.filter((p) => p?.type !== "thinking")
+    const thought = think
+      .flatMap((p) => (Array.isArray(p.thinking) ? p.thinking : []))
+      .filter((t) => typeof t?.text === "string")
+      .map((t) => t.text)
+      .join("")
+    const content = text
+      .filter((p) => typeof p?.text === "string")
+      .map((p) => p.text)
+      .join("")
+    return { thought, content }
+  }
+
+  export function normalizeSSEContent(input: string) {
+    function safeParse(s: string) {
+      try {
+        return JSON.parse(s)
+      } catch {
+        return null
+      }
+    }
+    return input
+      .split("\n")
+      .map((line) => {
+        if (!line.startsWith("data: ")) return line
+        const parsed = safeParse(line.slice(6))
+        if (!parsed) return line
+        for (const choice of parsed.choices ?? []) {
+          const d = choice?.delta
+          if (!d || !Array.isArray(d.content)) continue
+          const next = normalizeParts(d.content as Part[])
+          if (!next) continue
+          const { thought, content } = next
+          if (thought) d.reasoning_content = (d.reasoning_content ?? "") + thought
+          if (!content) {
+            delete d.content
+            continue
+          }
+          d.content = content
+        }
+        return "data: " + JSON.stringify(parsed)
+      })
+      .join("\n")
+  }
+
+  export function normalizeOpenAICompatibleResponse(input: string) {
+    function safeParse(s: string) {
+      try {
+        return JSON.parse(s)
+      } catch {
+        return null
+      }
+    }
+    const parsed = safeParse(input)
+    if (!parsed) return input
+    if (!Array.isArray(parsed.choices)) return input
+    for (const choice of parsed.choices) {
+      const msg = choice?.message
+      if (!msg || !Array.isArray(msg.content)) continue
+      const next = normalizeParts(msg.content as Part[])
+      if (!next) continue
+      const { thought, content } = next
+      if (thought) msg.reasoning_content = (msg.reasoning_content ?? "") + thought
+      msg.content = content
+    }
+    return JSON.stringify(parsed)
+  }
+
   const BUNDLED_PROVIDERS: Record<string, (options: any) => SDK> = {
     "@ai-sdk/amazon-bedrock": createAmazonBedrock,
     "@ai-sdk/anthropic": createAnthropic,
@@ -129,20 +200,18 @@ export namespace Provider {
     "@ai-sdk/togetherai": createTogetherAI,
     "@ai-sdk/perplexity": createPerplexity,
     "@ai-sdk/vercel": createVercel,
-    "gitlab-ai-provider": createGitLab,
+    "@gitlab/gitlab-ai-provider": createGitLab,
     // @ts-ignore (TODO: kill this code so we dont have to maintain it)
     "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
   }
 
   type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
   type CustomVarsLoader = (options: Record<string, any>) => Record<string, string>
-  type CustomDiscoverModels = () => Promise<Record<string, Model>>
   type CustomLoader = (provider: Info) => Promise<{
     autoload: boolean
     getModel?: CustomModelLoader
     vars?: CustomVarsLoader
     options?: Record<string, any>
-    discoverModels?: CustomDiscoverModels
   }>
 
   function useLanguageModel(sdk: any) {
@@ -155,7 +224,8 @@ export namespace Provider {
         autoload: false,
         options: {
           headers: {
-            "anthropic-beta": "interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
+            "anthropic-beta":
+              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
           },
         },
       }
@@ -191,16 +261,17 @@ export namespace Provider {
         options: {},
       }
     },
-    xai: async () => {
+    "github-copilot": async () => {
       return {
         autoload: false,
         async getModel(sdk: any, modelID: string, _options?: Record<string, any>) {
-          return sdk.responses(modelID)
+          if (useLanguageModel(sdk)) return sdk.languageModel(modelID)
+          return shouldUseCopilotResponsesApi(modelID) ? sdk.responses(modelID) : sdk.chat(modelID)
         },
         options: {},
       }
     },
-    "github-copilot": async () => {
+    "github-copilot-enterprise": async () => {
       return {
         autoload: false,
         async getModel(sdk: any, modelID: string, _options?: Record<string, any>) {
@@ -540,104 +611,27 @@ export namespace Provider {
         ...(providerConfig?.options?.aiGatewayHeaders || {}),
       }
 
-      const featureFlags = {
-        duo_agent_platform_agentic_chat: true,
-        duo_agent_platform: true,
-        ...(providerConfig?.options?.featureFlags || {}),
-      }
-
       return {
         autoload: !!apiKey,
         options: {
           instanceUrl,
           apiKey,
           aiGatewayHeaders,
-          featureFlags,
+          featureFlags: {
+            duo_agent_platform_agentic_chat: true,
+            duo_agent_platform: true,
+            ...(providerConfig?.options?.featureFlags || {}),
+          },
         },
-        async getModel(sdk: ReturnType<typeof createGitLab>, modelID: string, options?: Record<string, any>) {
-          if (modelID.startsWith("duo-workflow-")) {
-            const workflowRef = options?.workflowRef as string | undefined
-            // Use the static mapping if it exists, otherwise use duo-workflow with selectedModelRef
-            const sdkModelID = isWorkflowModel(modelID) ? modelID : "duo-workflow"
-            const model = sdk.workflowChat(sdkModelID, {
-              featureFlags,
-            })
-            if (workflowRef) {
-              model.selectedModelRef = workflowRef
-            }
-            return model
-          }
+        async getModel(sdk: ReturnType<typeof createGitLab>, modelID: string) {
           return sdk.agenticChat(modelID, {
             aiGatewayHeaders,
-            featureFlags,
+            featureFlags: {
+              duo_agent_platform_agentic_chat: true,
+              duo_agent_platform: true,
+              ...(providerConfig?.options?.featureFlags || {}),
+            },
           })
-        },
-        async discoverModels(): Promise<Record<string, Model>> {
-          if (!apiKey) {
-            log.info("gitlab model discovery skipped: no apiKey")
-            return {}
-          }
-
-          try {
-            const token = apiKey
-            const getHeaders = (): Record<string, string> =>
-              auth?.type === "api" ? { "PRIVATE-TOKEN": token } : { Authorization: `Bearer ${token}` }
-
-            log.info("gitlab model discovery starting", { instanceUrl })
-            const result = await discoverWorkflowModels(
-              { instanceUrl, getHeaders },
-              { workingDirectory: Instance.directory },
-            )
-
-            if (!result.models.length) {
-              log.info("gitlab model discovery skipped: no models found", {
-                project: result.project ? { id: result.project.id, path: result.project.pathWithNamespace } : null,
-              })
-              return {}
-            }
-
-            const models: Record<string, Model> = {}
-            for (const m of result.models) {
-              if (!input.models[m.id]) {
-                models[m.id] = {
-                  id: ModelID.make(m.id),
-                  providerID: ProviderID.make("gitlab"),
-                  name: `Agent Platform (${m.name})`,
-                  family: "",
-                  api: {
-                    id: m.id,
-                    url: instanceUrl,
-                    npm: "gitlab-ai-provider",
-                  },
-                  status: "active",
-                  headers: {},
-                  options: { workflowRef: m.ref },
-                  cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-                  limit: { context: m.context, output: m.output },
-                  capabilities: {
-                    temperature: false,
-                    reasoning: true,
-                    attachment: true,
-                    toolcall: true,
-                    input: { text: true, audio: false, image: true, video: false, pdf: true },
-                    output: { text: true, audio: false, image: false, video: false, pdf: false },
-                    interleaved: false,
-                  },
-                  release_date: "",
-                  variants: {},
-                }
-              }
-            }
-
-            log.info("gitlab model discovery complete", {
-              count: Object.keys(models).length,
-              models: Object.keys(models),
-            })
-            return models
-          } catch (e) {
-            log.warn("gitlab model discovery failed", { error: e })
-            return {}
-          }
         },
       }
     },
@@ -929,7 +923,7 @@ export namespace Provider {
       return true
     }
 
-    const providers: Record<ProviderID, Info> = {} as Record<ProviderID, Info>
+    const providers: { [providerID: string]: Info } = {}
     const languages = new Map<string, LanguageModelV2>()
     const modelLoaders: {
       [providerID: string]: CustomModelLoader
@@ -937,14 +931,25 @@ export namespace Provider {
     const varsLoaders: {
       [providerID: string]: CustomVarsLoader
     } = {}
-    const discoveryLoaders: {
-      [providerID: string]: CustomDiscoverModels
-    } = {}
     const sdk = new Map<string, SDK>()
 
     log.info("init")
 
     const configProviders = Object.entries(config.provider ?? {})
+
+    // Add GitHub Copilot Enterprise provider that inherits from GitHub Copilot
+    if (database["github-copilot"]) {
+      const githubCopilot = database["github-copilot"]
+      database["github-copilot-enterprise"] = {
+        ...githubCopilot,
+        id: ProviderID.make("github-copilot-enterprise"),
+        name: "GitHub Copilot Enterprise",
+        models: mapValues(githubCopilot.models, (model) => ({
+          ...model,
+          providerID: ProviderID.make("github-copilot-enterprise"),
+        })),
+      }
+    }
 
     function mergeProvider(providerID: ProviderID, provider: Partial<Info>) {
       const existing = providers[providerID]
@@ -1072,15 +1077,45 @@ export namespace Provider {
       const providerID = ProviderID.make(plugin.auth.provider)
       if (disabled.has(providerID)) continue
 
+      // For github-copilot plugin, check if auth exists for either github-copilot or github-copilot-enterprise
+      let hasAuth = false
       const auth = await Auth.get(providerID)
-      if (!auth) continue
+      if (auth) hasAuth = true
+
+      // Special handling for github-copilot: also check for enterprise auth
+      if (providerID === ProviderID.githubCopilot && !hasAuth) {
+        const enterpriseAuth = await Auth.get("github-copilot-enterprise")
+        if (enterpriseAuth) hasAuth = true
+      }
+
+      if (!hasAuth) continue
       if (!plugin.auth.loader) continue
 
+      // Load for the main provider if auth exists
       if (auth) {
         const options = await plugin.auth.loader(() => Auth.get(providerID) as any, database[plugin.auth.provider])
         const opts = options ?? {}
         const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
         mergeProvider(providerID, patch)
+      }
+
+      // If this is github-copilot plugin, also register for github-copilot-enterprise if auth exists
+      if (providerID === ProviderID.githubCopilot) {
+        const enterpriseProviderID = ProviderID.make("github-copilot-enterprise")
+        if (!disabled.has(enterpriseProviderID)) {
+          const enterpriseAuth = await Auth.get(enterpriseProviderID)
+          if (enterpriseAuth) {
+            const enterpriseOptions = await plugin.auth.loader(
+              () => Auth.get(enterpriseProviderID) as any,
+              database[enterpriseProviderID],
+            )
+            const opts = enterpriseOptions ?? {}
+            const patch: Partial<Info> = providers[enterpriseProviderID]
+              ? { options: opts }
+              : { source: "custom", options: opts }
+            mergeProvider(enterpriseProviderID, patch)
+          }
+        }
       }
     }
 
@@ -1096,7 +1131,6 @@ export namespace Provider {
       if (result && (result.autoload || providers[providerID])) {
         if (result.getModel) modelLoaders[providerID] = result.getModel
         if (result.vars) varsLoaders[providerID] = result.vars
-        if (result.discoverModels) discoveryLoaders[providerID] = result.discoverModels
         const opts = result.options ?? {}
         const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
         mergeProvider(providerID, patch)
@@ -1156,18 +1190,6 @@ export namespace Provider {
       }
 
       log.info("found", { providerID })
-    }
-
-    const gitlab = ProviderID.make("gitlab")
-    if (discoveryLoaders[gitlab] && providers[gitlab]) {
-      await (async () => {
-        const discovered = await discoveryLoaders[gitlab]()
-        for (const [modelID, model] of Object.entries(discovered)) {
-          if (!providers[gitlab].models[modelID]) {
-            providers[gitlab].models[modelID] = model
-          }
-        }
-      })().catch((e) => log.warn("state discovery error", { id: "gitlab", error: e }))
     }
 
     return {
@@ -1237,7 +1259,7 @@ export namespace Provider {
       if (existing) return existing
 
       const customFetch = options["fetch"]
-      const chunkTimeout = options["chunkTimeout"]
+      const chunkTimeout = options["chunkTimeout"] || DEFAULT_CHUNK_TIMEOUT
       delete options["chunkTimeout"]
 
       options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
@@ -1273,11 +1295,72 @@ export namespace Provider {
           }
         }
 
+        if (model.api.npm === "@ai-sdk/openai-compatible" && opts.body && opts.method === "POST") {
+          const body = JSON.parse(opts.body as string)
+          if (
+            Array.isArray(body.messages) &&
+            (body.messages as Record<string, unknown>[]).some((m) => m && "reasoning_content" in m)
+          ) {
+            ;(body.messages as Record<string, unknown>[]).forEach((m) => {
+              if (m && "reasoning_content" in m) delete m.reasoning_content
+            })
+            opts.body = JSON.stringify(body)
+          }
+        }
+
         const res = await fetchFn(input, {
           ...opts,
           // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
           timeout: false,
         })
+
+        if (
+          model.api.npm === "@ai-sdk/openai-compatible" &&
+          res.body &&
+          res.headers.get("content-type")?.includes("text/event-stream")
+        ) {
+          const reader = res.body.getReader()
+          const dec = new TextDecoder()
+          const enc = new TextEncoder()
+          let buf = ""
+          const stream = new ReadableStream<Uint8Array>({
+            async pull(ctrl) {
+              const { done, value } = await reader.read()
+              if (done) {
+                buf += dec.decode()
+                if (buf.length > 0) ctrl.enqueue(enc.encode(normalizeSSEContent(buf)))
+                ctrl.close()
+                return
+              }
+              buf += dec.decode(value, { stream: true })
+              const lines = buf.split("\n")
+              buf = lines.pop() ?? ""
+              if (lines.length === 0) return
+              ctrl.enqueue(enc.encode(normalizeSSEContent(lines.join("\n")) + "\n"))
+            },
+            async cancel(reason) {
+              await reader.cancel(reason)
+            },
+          })
+          const fixed = new Response(stream, {
+            headers: new Headers(res.headers),
+            status: res.status,
+            statusText: res.statusText,
+          })
+          if (!chunkAbortCtl) return fixed
+          return wrapSSE(fixed, chunkTimeout, chunkAbortCtl)
+        }
+
+        if (model.api.npm === "@ai-sdk/openai-compatible" && res.headers.get("content-type")?.includes("json")) {
+          const fixed = normalizeOpenAICompatibleResponse(await res.text())
+          const next = new Response(fixed, {
+            headers: new Headers(res.headers),
+            status: res.status,
+            statusText: res.statusText,
+          })
+          if (!chunkAbortCtl) return next
+          return wrapSSE(next, chunkTimeout, chunkAbortCtl)
+        }
 
         if (!chunkAbortCtl) return res
         return wrapSSE(res, chunkTimeout, chunkAbortCtl)
@@ -1350,7 +1433,7 @@ export namespace Provider {
 
     try {
       const language = s.modelLoaders[model.providerID]
-        ? await s.modelLoaders[model.providerID](sdk, model.api.id, { ...provider.options, ...model.options })
+        ? await s.modelLoaders[model.providerID](sdk, model.api.id, provider.options)
         : sdk.languageModel(model.api.id)
       s.models.set(key, language)
       return language
