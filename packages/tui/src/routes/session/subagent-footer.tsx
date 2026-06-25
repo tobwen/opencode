@@ -64,6 +64,7 @@ export function SubagentFooter(props: {
   const previousShortcut = useCommandShortcut("session.child.previous")
   const nextShortcut = useCommandShortcut("session.child.next")
   const interruptShortcut = useCommandShortcut("session.child.interrupt")
+  const armed = createMemo(() => props.interruptCount() > 0)
   const [hover, setHover] = createSignal<"parent" | "prev" | "next" | null>(null)
   useTerminalDimensions()
 
@@ -100,11 +101,22 @@ export function SubagentFooter(props: {
           </box>
           <box flexDirection="row" gap={2}>
             <Show when={props.sessionBusy()}>
-              <text fg={props.interruptCount() > 0 ? theme.primary : theme.text}>
-                {interruptShortcut() || "esc"}{" "}
-                <span style={{ fg: props.interruptCount() > 0 ? theme.primary : theme.textMuted }}>
-                  {props.interruptCount() > 0 ? "again to interrupt" : "interrupt"}
-                </span>
+              <text fg={armed() ? theme.primary : theme.text}>
+                {armed() ? (
+                  <>
+                    <span style={{ fg: armed() ? theme.primary : theme.textMuted }}>
+                      {interruptShortcut()}
+                    </span>{" "}
+                    again to interrupt
+                  </>
+                ) : (
+                  <>
+                    Interrupt{" "}
+                    <span style={{ fg: armed() ? theme.primary : theme.textMuted }}>
+                      {interruptShortcut()}
+                    </span>
+                  </>
+                )}
               </text>
             </Show>
             <box

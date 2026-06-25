@@ -199,6 +199,7 @@ export function Session() {
     return current ? { directory: current.directory, workspaceID: current.workspaceID } : undefined
   })
   const sessionStatus = createMemo(() => sync.data.session_status[route.sessionID]?.type ?? "idle")
+  const sessionBusy = createMemo(() => sessionStatus() !== "idle")
 
   createEffect(() => {
     const title = Locale.truncate(session()?.title ?? "", 50)
@@ -293,6 +294,7 @@ export function Session() {
       (isIdle) => {
         if (isIdle) resetInterrupt()
       },
+      { defer: true },
     ),
   )
 
@@ -300,6 +302,7 @@ export function Session() {
     on(
       () => route.sessionID,
       () => resetInterrupt(),
+      { defer: true },
     ),
   )
 
@@ -1159,21 +1162,26 @@ export function Session() {
         run: () => {
           dialog.clear()
           const next = interruptCount() + 1
-          setInterruptCount(next)
-          if (interruptTimer) clearTimeout(interruptTimer)
-          interruptTimer = setTimeout(resetInterrupt, 5000)
           if (next >= 2) {
             resetInterrupt()
-            sync.set("permission", route.sessionID, [])
-            sync.set("question", route.sessionID, [])
             void sdk.client.session
               .abort({ sessionID: route.sessionID })
+              .then(() => {
+                // Server cancels the runner but does not emit session-wide
+                // permission/question cleanup events; clear stale local state
+                sync.set("permission", route.sessionID, [])
+                sync.set("question", route.sessionID, [])
+              })
               .catch((error: unknown) => {
                 toast.show({
                   message: errorMessage(error),
                   variant: "error",
                 })
               })
+          } else {
+            setInterruptCount(next)
+            if (interruptTimer) clearTimeout(interruptTimer)
+            interruptTimer = setTimeout(resetInterrupt, 5000)
           }
         },
       },
@@ -1366,7 +1374,7 @@ export function Session() {
                 <Show when={session()?.parentID}>
                   <SubagentFooter
                     interruptCount={interruptCount}
-                    sessionBusy={() => sessionStatus() !== "idle"}
+                    sessionBusy={sessionBusy}
                   />
                 </Show>
                 <Show when={visible()}>
