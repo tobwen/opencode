@@ -7,16 +7,27 @@ import type { MessageV2 } from "./message-v2"
 
 const COMPACTION_BUFFER = 20_000
 
-export function usable(input: { cfg: ConfigV1.Info; model: Provider.Model; outputTokenMax?: number }) {
+export function usable(input: {
+  cfg: ConfigV1.Info
+  model: Provider.Model
+  outputTokenMax?: number
+  variantRecommendedOutput?: number
+}) {
   const context = input.model.limit.context
   if (context === 0) return 0
 
   const reserved =
     input.cfg.compaction?.reserved ??
-    Math.min(COMPACTION_BUFFER, ProviderTransform.maxOutputTokens(input.model, input.outputTokenMax))
+    Math.min(
+      COMPACTION_BUFFER,
+      ProviderTransform.maxOutputTokens(input.model, input.outputTokenMax, input.variantRecommendedOutput),
+    )
   return input.model.limit.input
     ? Math.max(0, input.model.limit.input - reserved)
-    : Math.max(0, context - ProviderTransform.maxOutputTokens(input.model, input.outputTokenMax))
+    : Math.max(
+        0,
+        context - ProviderTransform.maxOutputTokens(input.model, input.outputTokenMax, input.variantRecommendedOutput),
+      )
 }
 
 export function isOverflow(input: {
@@ -24,6 +35,7 @@ export function isOverflow(input: {
   tokens: SessionV1.Assistant["tokens"]
   model: Provider.Model
   outputTokenMax?: number
+  variantRecommendedOutput?: number
 }) {
   if (input.cfg.compaction?.auto === false) return false
   if (input.model.limit.context === 0) return false
