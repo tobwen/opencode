@@ -4792,3 +4792,30 @@ describe("ProviderTransform.providerOptions - ai-gateway-provider", () => {
     expect(result).toEqual({ openaiCompatible: { reasoningEffort: "high" } })
   })
 })
+
+describe("ProviderTransform.maxOutputTokens", () => {
+  const model = (output: number, maxOutput?: number) =>
+    ({
+      limit: { context: 200_000, output, maxOutput },
+      capabilities: { toolcall: true, reasoning: false, temperature: true, attachment: false },
+      api: { npm: "@ai-sdk/anthropic" },
+      cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+      options: {},
+    }) as any
+
+  test("falls back to model limit.output when maxOutput is not set", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000))).toBe(128_000)
+  })
+
+  test("uses maxOutput when set below limit.output", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 64_000))).toBe(64_000)
+  })
+
+  test("caps maxOutput at limit.output when set above", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 200_000))).toBe(128_000)
+  })
+
+  test("falls back to OUTPUT_TOKEN_MAX when both are 0", () => {
+    expect(ProviderTransform.maxOutputTokens(model(0))).toBe(ProviderTransform.OUTPUT_TOKEN_MAX)
+  })
+})

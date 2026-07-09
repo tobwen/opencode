@@ -1024,6 +1024,7 @@ const ProviderLimit = Schema.Struct({
   context: Schema.Finite,
   input: optional(Schema.Finite),
   output: Schema.Finite,
+  maxOutput: optional(Schema.Finite),
 })
 
 export const Model = Schema.Struct({
