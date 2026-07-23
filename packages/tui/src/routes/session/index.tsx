@@ -197,6 +197,8 @@ export function Session() {
     const current = session()
     return current ? { directory: current.directory, workspaceID: current.workspaceID } : undefined
   })
+  const sessionStatus = createMemo(() => sync.data.session_status[route.sessionID]?.type ?? "idle")
+  const sessionBusy = createMemo(() => sessionStatus() !== "idle")
 
   createEffect(() => {
     const title = Locale.truncate(session()?.title ?? "", 50)
@@ -282,6 +284,41 @@ export function Session() {
   const toast = useToast()
   const sdk = useSDK()
   const editor = useEditorContext()
+
+  const [interruptCount, setInterruptCount] = createSignal(0)
+  let interruptTimer: ReturnType<typeof setTimeout> | undefined
+  const resetInterrupt = () => {
+    setInterruptCount(0)
+    if (interruptTimer) {
+      clearTimeout(interruptTimer)
+      interruptTimer = undefined
+    }
+  }
+
+  createEffect(
+    on(
+      () => sessionStatus() === "idle",
+      (isIdle) => {
+        if (isIdle) resetInterrupt()
+      },
+      { defer: true },
+    ),
+  )
+
+  createEffect(
+    on(
+      () => route.sessionID,
+      () => resetInterrupt(),
+      { defer: true },
+    ),
+  )
+
+  onCleanup(() => {
+    if (interruptTimer) {
+      clearTimeout(interruptTimer)
+      interruptTimer = undefined
+    }
+  })
 
   createEffect(() => {
     const sessionID = route.sessionID
@@ -1114,6 +1151,48 @@ export function Session() {
 
   useBindings(() => ({
     mode: OPENCODE_BASE_MODE,
+    bindings: tuiConfig.keybinds.get("session.interrupt").map((binding) => ({
+      ...binding,
+      cmd: "session.child.interrupt",
+    })),
+    commands: [
+      {
+        name: "session.child.interrupt",
+        title: "Interrupt subagent session",
+        category: "Session",
+        hidden: true,
+        enabled: !!session()?.parentID && sessionStatus() !== "idle",
+        run: () => {
+          dialog.clear()
+          const next = interruptCount() + 1
+          if (next >= 2) {
+            resetInterrupt()
+            void sdk.client.session
+              .abort({ sessionID: route.sessionID })
+              .then(() => {
+                // Server cancels the runner but does not emit session-wide
+                // permission/question cleanup events; clear stale local state
+                sync.set("permission", route.sessionID, [])
+                sync.set("question", route.sessionID, [])
+              })
+              .catch((error: unknown) => {
+                toast.show({
+                  message: errorMessage(error),
+                  variant: "error",
+                })
+              })
+          } else {
+            setInterruptCount(next)
+            if (interruptTimer) clearTimeout(interruptTimer)
+            interruptTimer = setTimeout(resetInterrupt, 5000)
+          }
+        },
+      },
+    ],
+  }))
+
+  useBindings(() => ({
+    mode: OPENCODE_BASE_MODE,
     enabled: foregroundTasks().length > 0,
     priority: 1,
     bindings: tuiConfig.keybinds.get("session.background"),
@@ -1307,7 +1386,10 @@ export function Session() {
                   />
                 </Show>
                 <Show when={session()?.parentID}>
-                  <SubagentFooter />
+                  <SubagentFooter
+                    interruptCount={interruptCount}
+                    sessionBusy={sessionBusy}
+                  />
                 </Show>
                 <Show when={visible()}>
                   <pluginRuntime.Slot
