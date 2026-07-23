@@ -281,7 +281,10 @@ export function Autocomplete(props: {
 
   const referenceMatch = createMemo(() => {
     if (!store.visible || store.visible === "/") return
-    const { baseQuery } = extractLineRange(search())
+    const s = search()
+    const leadingAts = s.match(/^@+/)?.[0].length ?? 0
+    if (leadingAts < 2) return
+    const { baseQuery } = extractLineRange(s.replace(/^@+/, ""))
     const slash = baseQuery.indexOf("/")
     const alias = slash === -1 ? baseQuery : baseQuery.slice(0, slash)
     return references().find((item) => !item.hidden && item.name === alias)
@@ -314,16 +317,20 @@ export function Autocomplete(props: {
   }
 
   const [files] = createResource(
-    () => ({ query: search(), location: location() }),
+    () => ({ query: search(), location: location(), visible: store.visible }),
     async (input) => {
-      if (!store.visible || store.visible === "/") return []
-      if (referenceMatch()) return []
-      const { lineRange, baseQuery } = extractLineRange(input.query ?? "")
+      if (!input.visible || input.visible === "/") return []
+      const leadingAts = (input.query ?? "").match(/^@+/)?.[0].length ?? 0
+      if (leadingAts >= 2) return []
+      const stripped = (input.query ?? "").replace(/^@+/, "")
+      const literal = stripped.startsWith("!")
+      const literalQuery = literal ? stripped.slice(1) : stripped
+      const { lineRange, baseQuery } = extractLineRange(literalQuery)
 
-      // Get files from SDK
       const result = await sdk.client.v2.fs.find({
         query: baseQuery,
-        limit: "20",
+        limit: "250",
+        type: leadingAts === 0 ? "file" : "directory",
         location: {
           directory: input.location?.directory,
           workspace: input.location?.workspaceID ?? project.workspace.current(),
@@ -332,12 +339,13 @@ export function Autocomplete(props: {
 
       const options: AutocompleteOption[] = []
 
-      // Add file options. Trust the order returned by fff (frecency, fuzzy
-      // score, filename bonus, etc. are already factored in).
       if (!result.error && result.data) {
         const width = props.anchor().width - 4
+        const items = literal
+          ? result.data.data.filter((item) => item.path.includes(baseQuery))
+          : result.data.data
         options.push(
-          ...result.data.data.map((item): AutocompleteOption => {
+          ...items.map((item): AutocompleteOption => {
             const { filename, part } = createFilePart(
               item,
               path.join(result.data.location.directory, item.path),
@@ -365,6 +373,8 @@ export function Autocomplete(props: {
 
   const mcpResources = createMemo(() => {
     if (!store.visible || store.visible === "/") return []
+    const leadingAts = search().match(/^@+/)?.[0].length ?? 0
+    if (leadingAts < 2) return []
 
     const options: AutocompleteOption[] = []
     const width = props.anchor().width - 4
@@ -481,17 +491,22 @@ export function Autocomplete(props: {
     const commandsValue = commands()
     const searchValue = search()
 
-    if (store.visible === "@" && referenceMatchValue) {
+    const leadingAts = store.visible === "@" ? (searchValue.match(/^@+/)?.[0].length ?? 0) : 0
+    const strippedSearch = searchValue.replace(/^@+/, "").replace(/^!/, "")
+
+    if (store.visible === "@" && leadingAts >= 2 && referenceMatchValue) {
       return referenceAliasesValue.filter((item) => item.display === `@${referenceMatchValue.name}`)
     }
 
-    // Files come from fff already fuzzy ranked and filtered
-    // it shouldn't be additionally sorted by fuzzysort as it will loose the results
-    const fileOptions: AutocompleteOption[] = store.visible === "@" ? filesValue || [] : []
+    const fileOptions: AutocompleteOption[] = store.visible === "@" && leadingAts <= 1 ? filesValue || [] : []
     const nonFileOptions: AutocompleteOption[] =
-      store.visible === "@" ? [...referenceAliasesValue, ...agentsValue, ...mcpResources()] : [...commandsValue]
+      store.visible === "@" && leadingAts >= 2
+        ? [...agentsValue, ...referenceAliasesValue, ...mcpResources()]
+        : store.visible === "/"
+          ? [...commandsValue]
+          : []
 
-    if (!searchValue) {
+    if (!strippedSearch) {
       return [...nonFileOptions, ...fileOptions]
     }
 
@@ -500,19 +515,18 @@ export function Autocomplete(props: {
     }
 
     const fuzziedNonFiles = fuzzysort
-      .go(removeLineRange(searchValue), nonFileOptions, {
+      .go(removeLineRange(strippedSearch), nonFileOptions, {
         keys: [
           (obj) => removeLineRange((obj.value ?? obj.display).trimEnd()),
-          // Match description for slash commands only; for "@" it surfaced unrelated items.
           ...(store.visible === "/" ? ["description" as const] : []),
           (obj) => obj.aliases?.join(" ") ?? "",
         ],
-        threshold: store.visible === "@" ? 0.5 : 0,
+        threshold: store.visible === "/" ? 0 : 0.5,
         limit: 10,
         scoreFn: (objResults) => {
           const displayResult = objResults[0]
           let score = objResults.score
-          if (displayResult && displayResult.target.startsWith(store.visible + searchValue)) {
+          if (displayResult && displayResult.target.startsWith(store.visible + strippedSearch)) {
             score *= 2
           }
           const frecencyScore = objResults.obj.path ? frecency.getFrecency(objResults.obj.path) : 0
