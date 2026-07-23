@@ -488,9 +488,17 @@ const layer = Layer.effect(
                 messageID: ctx.assistantMessage.parentID,
               })
               .pipe(Effect.ignore, Effect.forkIn(scope))
+            const variantRecommendedOutput = ctx.assistantMessage.variant
+              ? ctx.model.variants?.[ctx.assistantMessage.variant]?.recommendedOutput
+              : undefined
             if (
               !ctx.assistantMessage.summary &&
-              isOverflow({ cfg: yield* config.get(), tokens: usage.tokens, model: ctx.model })
+              isOverflow({
+                cfg: yield* config.get(),
+                tokens: usage.tokens,
+                model: ctx.model,
+                variantRecommendedOutput,
+              })
             ) {
               ctx.needsCompaction = true
             }

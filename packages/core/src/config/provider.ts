@@ -28,6 +28,7 @@ class Limit extends Schema.Class<Limit>("ConfigV2.Model.Limit")({
   context: Schema.Int.pipe(Schema.optional),
   input: Schema.Int.pipe(Schema.optional),
   output: Schema.Int.pipe(Schema.optional),
+  recommendedOutput: Schema.Int.pipe(Schema.optional),
 }) {}
 
 const ModelApi = Schema.Union([

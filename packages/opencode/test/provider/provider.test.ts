@@ -436,6 +436,34 @@ it.instance(
 )
 
 it.instance(
+  "merges limit.recommendedOutput from config into model",
+  Effect.gen(function* () {
+    const providers = yield* list
+    const model = providers[ProviderV2.ID.make("rec-provider")].models["rec-model"]
+    expect(model.limit.recommendedOutput).toBe(64000)
+  }),
+  {
+    config: {
+      provider: {
+        "rec-provider": {
+          name: "Rec Provider",
+          npm: "@ai-sdk/openai-compatible",
+          env: [],
+          models: {
+            "rec-model": {
+              name: "Rec Model",
+              tool_call: true,
+              limit: { context: 128000, output: 131072, recommendedOutput: 64000 },
+            },
+          },
+          options: { apiKey: "test-key" },
+        },
+      },
+    },
+  },
+)
+
+it.instance(
   "model options are merged from existing model",
   Effect.gen(function* () {
     const providers = yield* list
