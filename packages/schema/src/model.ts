@@ -82,6 +82,7 @@ export const Info = Schema.Struct({
     context: Schema.Int,
     input: Schema.Int.pipe(optional),
     output: Schema.Int,
+    recommendedOutput: Schema.Int.pipe(optional),
   }),
 })
   .annotate({ identifier: "ModelV2.Info" })

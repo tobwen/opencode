@@ -6195,3 +6195,63 @@ describe("ProviderTransform.options - kimi family adaptive thinking", () => {
     expect(result.thinking).toBeUndefined()
   })
 })
+
+describe("ProviderTransform.maxOutputTokens", () => {
+  const model = (output: number, recommendedOutput?: number) =>
+    ({
+      limit: { context: 200_000, output, recommendedOutput },
+      capabilities: { toolcall: true, reasoning: false, temperature: true, attachment: false },
+      api: { npm: "@ai-sdk/anthropic" },
+      cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+      options: {},
+    }) as any
+
+  test("caps at OUTPUT_TOKEN_MAX when recommendedOutput is not set", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000))).toBe(ProviderTransform.OUTPUT_TOKEN_MAX)
+  })
+
+  test("uses recommendedOutput when set below limit.output", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 64_000))).toBe(64_000)
+  })
+
+  test("caps recommendedOutput at limit.output when set above", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 200_000))).toBe(128_000)
+  })
+
+  test("falls back to OUTPUT_TOKEN_MAX when both are 0", () => {
+    expect(ProviderTransform.maxOutputTokens(model(0))).toBe(ProviderTransform.OUTPUT_TOKEN_MAX)
+  })
+
+  test("outputTokenMax overrides recommendedOutput when set higher", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 64_000), 100_000)).toBe(100_000)
+  })
+
+  test("outputTokenMax caps at limit.output even above recommendedOutput", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 64_000), 200_000)).toBe(128_000)
+  })
+
+  test("variantRecommendedOutput overrides model recommendedOutput", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 64_000), undefined, 80_000)).toBe(80_000)
+  })
+
+  test("variantRecommendedOutput used when model recommendedOutput not set", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000), undefined, 50_000)).toBe(50_000)
+  })
+
+  test("outputTokenMax overrides variantRecommendedOutput", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 64_000), 100_000, 80_000)).toBe(100_000)
+  })
+
+  test("variantRecommendedOutput caps at limit.output", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000), undefined, 200_000)).toBe(128_000)
+  })
+
+  test("non-number variantRecommendedOutput is ignored", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, 64_000), undefined, "high" as any)).toBe(64_000)
+  })
+
+  test("non-number model recommendedOutput is ignored", () => {
+    expect(ProviderTransform.maxOutputTokens(model(128_000, "high" as any))).toBe(ProviderTransform.OUTPUT_TOKEN_MAX)
+
+  })
+})

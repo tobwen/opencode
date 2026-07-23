@@ -49,6 +49,7 @@ export const Model = Schema.Struct({
       context: Schema.Finite,
       input: Schema.optional(Schema.Finite),
       output: Schema.Finite,
+      recommendedOutput: Schema.optional(Schema.Finite),
     }),
   ),
   modalities: Schema.optional(
@@ -72,6 +73,7 @@ export const Model = Schema.Struct({
       Schema.StructWithRest(
         Schema.Struct({
           disabled: Schema.optional(Schema.Boolean).annotate({ description: "Disable this variant for the model" }),
+          recommendedOutput: Schema.optional(Schema.Finite).annotate({ description: "Recommended max output tokens for this variant" }),
         }),
         [Schema.Record(Schema.String, Schema.Any)],
       ),
