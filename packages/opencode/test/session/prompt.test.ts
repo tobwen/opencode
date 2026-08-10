@@ -754,23 +754,36 @@ noLLMServer.instance.skip(
   { config: cfg },
 )
 
-noLLMServer.instance(
-  "prompt loop does not crash when toolcall is false",
-  () =>
-    Effect.gen(function* () {
-      const prompt = yield* SessionPrompt.Service
-      const sessions = yield* Session.Service
-      const session = yield* sessions.create({ title: "No toolcall" })
-      yield* prompt.prompt({
-        sessionID: session.id,
-        agent: "build",
-        noReply: true,
-        parts: [{ type: "text", text: "hello" }],
-      })
-      const result = yield* prompt.loop({ sessionID: session.id })
-      expect(result.info.role).toBe("assistant")
-    }),
-  { config: { ...cfg, provider: { test: { ...cfg.provider.test, models: { "test-model": { ...cfg.provider.test.models["test-model"], tool_call: false } } } } } },
+it.instance("prompt loop omits tools when toolcall is false", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig((url) => ({
+      ...providerCfg(url),
+      provider: {
+        test: {
+          ...cfg.provider.test,
+          models: {
+            "test-model": { ...cfg.provider.test.models["test-model"], tool_call: false },
+          },
+          options: { ...cfg.provider.test.options, baseURL: url },
+        },
+      },
+    }))
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const session = yield* sessions.create({ title: "No toolcall" })
+    yield* prompt.prompt({
+      sessionID: session.id,
+      agent: "build",
+      noReply: true,
+      parts: [{ type: "text", text: "hello" }],
+    })
+    yield* llm.text("world")
+
+    const result = yield* prompt.loop({ sessionID: session.id })
+    const [input] = yield* llm.inputs
+    expect(result.info.role).toBe("assistant")
+    expect(input.tools).toBeUndefined()
+  }),
 )
 
 it.instance("static loop returns assistant text through local provider", () =>
