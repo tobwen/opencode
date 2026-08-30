@@ -578,6 +578,22 @@ export type TuiWorkspace = {
   set: (workspaceID?: string) => void
 }
 
+export type TuiModel = {
+  current: () => { providerID: string; modelID: string } | undefined
+  set: (model: { providerID: string; modelID: string }) => boolean
+  isValid: (model: { providerID: string; modelID: string }) => boolean
+  recent: () => ReadonlyArray<{ providerID: string; modelID: string }>
+  favorite: () => ReadonlyArray<{ providerID: string; modelID: string }>
+  toggleFavorite: (model: { providerID: string; modelID: string }) => boolean
+  variant: {
+    selected: () => string | undefined
+    current: () => string | undefined
+    list: () => ReadonlyArray<string>
+    set: (value: string | undefined) => void
+    cycle: () => void
+  }
+}
+
 export type TuiPluginApi = {
   app: TuiApp
   attention: TuiAttention
@@ -611,6 +627,7 @@ export type TuiPluginApi = {
   kv: TuiKV
   state: TuiState
   theme: TuiTheme
+  model: TuiModel
   client: OpencodeClient
   event: TuiEventBus
   renderer: CliRenderer
