@@ -421,12 +421,12 @@ Theme install behavior:
 ### Model
 
 - `api.model.current()` returns `{ providerID, modelID } | undefined` for the current agent's model.
-- `api.model.set({ providerID, modelID })` switches the Hauptfenster-Modell sofort; validiert gegen `api.state.provider`, schreibt `model.json` + `recent`, zeigt Toast bei invalid und returned `boolean`.
-- `api.model.isValid(model)` prüft Provider/Model ohne Seiteneffekt.
-- `api.model.recent()` / `favorite()` lesen Listen; `toggleFavorite(model)` toggelt Favorit.
-- `api.model.variant.*` spiegelt `local.model.variant` (`selected`, `current`, `list`, `set`, `cycle`).
+- `api.model.set({ providerID, modelID })` switches the model for the current agent and records it as recent. Invalid models are rejected with a toast. Returns `true` when the model was applied.
+- `api.model.isValid(model)` checks a model against the connected providers without side effects.
+- `api.model.recent()` and `api.model.favorite()` return the stored model lists. `api.model.toggleFavorite(model)` toggles the favorite flag and returns the new favorite state.
+- `api.model.variant.*` mirrors the reasoning variant selection (`selected`, `current`, `list`, `set`, `cycle`).
 
-Minimaler Sidebar-Switch aus Plugin:
+Example: switch models from a sidebar slot.
 
 ```tsx
 // tui.tsx
@@ -438,8 +438,8 @@ const tui: TuiPlugin = async (api) => {
         return (
           <box gap={1}>
             <text>Model: {api.model.current()?.modelID ?? "none"}</text>
-            <text onMouseDown={() => api.model.set({ providerID: "anthropic", modelID: "claude-sonnet-4-20250514" })}>→ Sonnet</text>
-            <text onMouseDown={() => api.model.set({ providerID: "opencode", modelID: "glm-4.6" })}>→ GLM</text>
+            <text onMouseDown={() => api.model.set({ providerID: "anthropic", modelID: "claude-sonnet-4-20250514" })}>to Sonnet</text>
+            <text onMouseDown={() => api.model.set({ providerID: "opencode", modelID: "glm-4.6" })}>to GLM</text>
           </box>
         )
       },
