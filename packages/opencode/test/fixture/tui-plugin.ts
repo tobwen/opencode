@@ -114,6 +114,7 @@ type Opts = {
     ready?: boolean
     current?: HostPluginApi["theme"]["current"]
   }
+  model?: Partial<HostPluginApi["model"]> & { variant?: Partial<HostPluginApi["model"]["variant"]> }
 }
 
 function tuiConfig(input?: Partial<HostPluginApi["tuiConfig"]>): HostPluginApi["tuiConfig"] {
@@ -349,6 +350,21 @@ export function createTuiPluginApi(opts: Opts = {}): HostPluginApi {
       },
       get ready() {
         return opts.theme?.ready ?? true
+      },
+    },
+    model: {
+      current: opts.model?.current ?? (() => undefined),
+      set: opts.model?.set ?? (() => false),
+      isValid: opts.model?.isValid ?? (() => false),
+      recent: opts.model?.recent ?? (() => []),
+      favorite: opts.model?.favorite ?? (() => []),
+      toggleFavorite: opts.model?.toggleFavorite ?? (() => false),
+      variant: {
+        selected: opts.model?.variant?.selected ?? (() => undefined),
+        current: opts.model?.variant?.current ?? (() => undefined),
+        list: opts.model?.variant?.list ?? (() => []),
+        set: opts.model?.variant?.set ?? (() => {}),
+        cycle: opts.model?.variant?.cycle ?? (() => {}),
       },
     },
   }

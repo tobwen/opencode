@@ -5,6 +5,7 @@ import type { useRoute } from "../context/route"
 import type { useSDK } from "../context/sdk"
 import type { useSync } from "../context/sync"
 import type { useTheme } from "../context/theme"
+import type { useLocal } from "../context/local"
 import { Dialog as DialogUI, type useDialog } from "../ui/dialog"
 import type { useOpencodeKeymap } from "../keymap"
 import type { useKV } from "../context/kv"
@@ -32,6 +33,7 @@ type Input = {
   sdk: ReturnType<typeof useSDK>
   sync: ReturnType<typeof useSync>
   theme: ReturnType<typeof useTheme>
+  local: ReturnType<typeof useLocal>
   toast: ReturnType<typeof useToast>
   renderer: TuiPluginApi["renderer"]
   attention: TuiPluginApi["attention"]
@@ -170,6 +172,58 @@ function appApi(version: string): TuiPluginApi["app"] {
   }
 }
 
+function modelApi(
+  local: ReturnType<typeof useLocal>,
+  sync: ReturnType<typeof useSync>,
+): TuiPluginApi["model"] {
+  return {
+    current() {
+      return local.model.current()
+    },
+    set(model) {
+      local.model.set(model, { recent: true })
+      const after = local.model.current()
+      if (!after) return false
+      return after.providerID === model.providerID && after.modelID === model.modelID
+    },
+    isValid(model) {
+      const provider = sync.data.provider.find((item) => item.id === model.providerID)
+      return !!provider?.models[model.modelID]
+    },
+    recent() {
+      return local.model.recent()
+    },
+    favorite() {
+      return local.model.favorite()
+    },
+    toggleFavorite(model) {
+      const was = local.model.favorite().some((x) => x.providerID === model.providerID && x.modelID === model.modelID)
+      local.model.toggleFavorite(model)
+      const now = local.model.favorite().some((x) => x.providerID === model.providerID && x.modelID === model.modelID)
+      if (!was && !now) return false
+      if (was && now) return false
+      return now
+    },
+    variant: {
+      selected() {
+        return local.model.variant.selected()
+      },
+      current() {
+        return local.model.variant.current()
+      },
+      list() {
+        return local.model.variant.list()
+      },
+      set(value) {
+        local.model.variant.set(value)
+      },
+      cycle() {
+        local.model.variant.cycle()
+      },
+    },
+  }
+}
+
 export function createTuiApiAdapters(input: Input): Omit<TuiPluginApi, "lifecycle"> {
   return {
     app: appApi(input.version),
@@ -298,6 +352,7 @@ export function createTuiApiAdapters(input: Input): Omit<TuiPluginApi, "lifecycl
       },
     },
     state: stateApi(input.sync),
+    model: modelApi(input.local, input.sync),
     get client() {
       return input.sdk.client
     },

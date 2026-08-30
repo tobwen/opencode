@@ -623,6 +623,7 @@ function pluginApi(runtime: RuntimeState, plugin: PluginEntry, scope: PluginScop
     kv: api.kv,
     state: api.state,
     theme,
+    model: api.model,
     get client() {
       return api.client
     },

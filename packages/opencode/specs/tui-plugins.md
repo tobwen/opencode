@@ -237,6 +237,7 @@ Top-level API groups exposed to `tui(api, options, meta)`:
 - `api.kv.get`, `set`, `ready`
 - `api.state`
 - `api.theme.current`, `selected`, `has`, `set`, `install`, `mode`, `ready`
+- `api.model.current()`, `set({ providerID, modelID })`, `isValid(model)`, `recent()`, `favorite()`, `toggleFavorite(model)`, `variant.*`
 - `api.client`
 - `api.event.on(type, handler)`
 - `api.renderer`
@@ -416,6 +417,37 @@ Theme install behavior:
 - Local plugins persist installed themes under the local `.opencode/themes` area near the plugin config source.
 - Global plugins persist installed themes under the global `themes` dir.
 - Invalid or unreadable theme files are ignored.
+
+### Model
+
+- `api.model.current()` returns `{ providerID, modelID } | undefined` for the current agent's model.
+- `api.model.set({ providerID, modelID })` switches the Hauptfenster-Modell sofort; validiert gegen `api.state.provider`, schreibt `model.json` + `recent`, zeigt Toast bei invalid und returned `boolean`.
+- `api.model.isValid(model)` prüft Provider/Model ohne Seiteneffekt.
+- `api.model.recent()` / `favorite()` lesen Listen; `toggleFavorite(model)` toggelt Favorit.
+- `api.model.variant.*` spiegelt `local.model.variant` (`selected`, `current`, `list`, `set`, `cycle`).
+
+Minimaler Sidebar-Switch aus Plugin:
+
+```tsx
+// tui.tsx
+import type { TuiPlugin } from "@opencode-ai/plugin/tui"
+const tui: TuiPlugin = async (api) => {
+  api.slots.register({
+    slots: {
+      sidebar_content(_ctx, props) {
+        return (
+          <box gap={1}>
+            <text>Model: {api.model.current()?.modelID ?? "none"}</text>
+            <text onMouseDown={() => api.model.set({ providerID: "anthropic", modelID: "claude-sonnet-4-20250514" })}>→ Sonnet</text>
+            <text onMouseDown={() => api.model.set({ providerID: "opencode", modelID: "glm-4.6" })}>→ GLM</text>
+          </box>
+        )
+      },
+    },
+  })
+}
+export default { id: "demo.model-switch", tui }
+```
 
 ### Slots
 
