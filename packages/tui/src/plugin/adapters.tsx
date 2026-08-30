@@ -172,6 +172,9 @@ function appApi(version: string): TuiPluginApi["app"] {
   }
 }
 
+// Exposes the model selection shown in the prompt input to plugins.
+// set() and toggleFavorite() follow local.model: invalid models are
+// rejected with a toast.
 function modelApi(
   local: ReturnType<typeof useLocal>,
   sync: ReturnType<typeof useSync>,
@@ -197,12 +200,8 @@ function modelApi(
       return local.model.favorite()
     },
     toggleFavorite(model) {
-      const was = local.model.favorite().some((x) => x.providerID === model.providerID && x.modelID === model.modelID)
       local.model.toggleFavorite(model)
-      const now = local.model.favorite().some((x) => x.providerID === model.providerID && x.modelID === model.modelID)
-      if (!was && !now) return false
-      if (was && now) return false
-      return now
+      return local.model.favorite().some((item) => item.providerID === model.providerID && item.modelID === model.modelID)
     },
     variant: {
       selected() {
