@@ -327,6 +327,7 @@ export function Autocomplete(props: {
       const literalQuery = literal ? stripped.slice(1) : stripped
       const { lineRange, baseQuery } = extractLineRange(literalQuery)
 
+      // Get files from SDK
       const result = await sdk.client.v2.fs.find({
         query: baseQuery,
         limit: "250",
@@ -339,11 +340,11 @@ export function Autocomplete(props: {
 
       const options: AutocompleteOption[] = []
 
+      // Add file options. Trust the order returned by fff (frecency, fuzzy
+      // score, filename bonus, etc. are already factored in).
       if (!result.error && result.data) {
         const width = props.anchor().width - 4
-        const items = literal
-          ? result.data.data.filter((item) => item.path.includes(baseQuery))
-          : result.data.data
+        const items = literal ? result.data.data.filter((item) => item.path.includes(baseQuery)) : result.data.data
         options.push(
           ...items.map((item): AutocompleteOption => {
             const { filename, part } = createFilePart(
@@ -498,6 +499,8 @@ export function Autocomplete(props: {
       return referenceAliasesValue.filter((item) => item.display === `@${referenceMatchValue.name}`)
     }
 
+    // Files come from fff already fuzzy ranked and filtered
+    // it shouldn't be additionally sorted by fuzzysort as it will loose the results
     const fileOptions: AutocompleteOption[] = store.visible === "@" && leadingAts <= 1 ? filesValue || [] : []
     const nonFileOptions: AutocompleteOption[] =
       store.visible === "@" && leadingAts >= 2
@@ -518,6 +521,7 @@ export function Autocomplete(props: {
       .go(removeLineRange(strippedSearch), nonFileOptions, {
         keys: [
           (obj) => removeLineRange((obj.value ?? obj.display).trimEnd()),
+          // Match description for slash commands only; for "@" it surfaced unrelated items.
           ...(store.visible === "/" ? ["description" as const] : []),
           (obj) => obj.aliases?.join(" ") ?? "",
         ],
