@@ -6279,3 +6279,28 @@ describe("ProviderTransform.smallOptions", () => {
     expect(ProviderTransform.smallOptions(model)).toEqual({ reasoningEffort: "high" })
   })
 })
+
+describe("ProviderTransform.variantRecommendedOutput", () => {
+  test("returns the value for a known variant", () => {
+    expect(
+      ProviderTransform.variantRecommendedOutput({ variants: { high: { recommendedOutput: 8192 } } }, "high"),
+    ).toBe(8192)
+  })
+
+  test("returns undefined without a variant name", () => {
+    expect(
+      ProviderTransform.variantRecommendedOutput({ variants: { high: { recommendedOutput: 8192 } } }),
+    ).toBeUndefined()
+  })
+
+  test("returns undefined for an unknown variant or missing variants", () => {
+    expect(ProviderTransform.variantRecommendedOutput({ variants: {} }, "high")).toBeUndefined()
+    expect(ProviderTransform.variantRecommendedOutput({}, "high")).toBeUndefined()
+  })
+
+  test("ignores non-number values", () => {
+    expect(
+      ProviderTransform.variantRecommendedOutput({ variants: { high: { recommendedOutput: "high" } } }, "high"),
+    ).toBeUndefined()
+  })
+})

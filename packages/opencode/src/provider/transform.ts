@@ -1476,6 +1476,12 @@ export function maxOutputTokens(
   return Math.min(model.limit.output, cap) || cap
 }
 
+export function variantRecommendedOutput(model: Pick<Provider.Model, "variants">, variant?: string) {
+  if (!variant) return undefined
+  const value = model.variants?.[variant]?.recommendedOutput
+  return typeof value === "number" ? value : undefined
+}
+
 type JsonRecord = Record<string, unknown>
 
 function isPlainObject(value: unknown): value is JsonRecord {

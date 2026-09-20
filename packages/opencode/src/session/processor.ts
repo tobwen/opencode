@@ -19,6 +19,7 @@ import { SessionRetry } from "./retry"
 import { SessionStatus } from "./status"
 import { SessionSummary } from "./summary"
 import type { Provider } from "@/provider/provider"
+import { ProviderTransform } from "@/provider/transform"
 import { Question } from "@/question"
 import { errorMessage } from "@/util/error"
 import { isRecord } from "@/util/record"
@@ -488,9 +489,10 @@ const layer = Layer.effect(
                 messageID: ctx.assistantMessage.parentID,
               })
               .pipe(Effect.ignore, Effect.forkIn(scope))
-            const variantRecommendedOutput = ctx.assistantMessage.variant
-              ? ctx.model.variants?.[ctx.assistantMessage.variant]?.recommendedOutput
-              : undefined
+            const variantRecommendedOutput = ProviderTransform.variantRecommendedOutput(
+              ctx.model,
+              ctx.assistantMessage.variant,
+            )
             if (
               !ctx.assistantMessage.summary &&
               isOverflow({

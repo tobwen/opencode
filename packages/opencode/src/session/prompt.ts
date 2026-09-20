@@ -9,6 +9,7 @@ import { SessionRevert } from "./revert"
 import { Session } from "./session"
 import { Agent } from "../agent/agent"
 import { Provider } from "@/provider/provider"
+import { ProviderTransform } from "@/provider/transform"
 
 import { type Tool as AITool, tool, jsonSchema } from "ai"
 import type { JSONSchema7 } from "@ai-sdk/provider"
@@ -1158,9 +1159,7 @@ const layer = Layer.effect(
             continue
           }
 
-          const variantRecommendedOutput = lastUser.model.variant
-            ? model.variants?.[lastUser.model.variant]?.recommendedOutput
-            : undefined
+          const variantRecommendedOutput = ProviderTransform.variantRecommendedOutput(model, lastUser.model.variant)
 
           if (
             lastFinished &&
