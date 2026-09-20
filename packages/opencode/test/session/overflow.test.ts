@@ -169,7 +169,7 @@ describe("overflow.isOverflow", () => {
     ).toBe(true)
   })
 
-  test("model-switch: 100K fits Kimi with recommendedOutput 32K", () => {
+  test("keeps 100K input within usable context when recommendedOutput is 32K", () => {
     expect(
       isOverflow({
         cfg,
@@ -183,7 +183,7 @@ describe("overflow.isOverflow", () => {
     ).toBe(false)
   })
 
-  test("model-switch: 200K with variant recommendedOutput 100K triggers overflow", () => {
+  test("triggers overflow at 200K when variant recommendedOutput is 100K", () => {
     expect(
       isOverflow({
         cfg,
