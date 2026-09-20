@@ -6266,6 +6266,16 @@ describe("ProviderTransform.maxOutputTokens", () => {
 
   test("non-number model recommendedOutput is ignored", () => {
     expect(ProviderTransform.maxOutputTokens(model(128_000, "high" as any))).toBe(ProviderTransform.OUTPUT_TOKEN_MAX)
+  })
+})
 
+describe("ProviderTransform.smallOptions", () => {
+  test("omits recommendedOutput from provider options", () => {
+    const model = {
+      providerID: "test",
+      api: { npm: "@ai-sdk/anthropic" },
+      variants: { high: { reasoningEffort: "high", recommendedOutput: 8192 } },
+    } as any
+    expect(ProviderTransform.smallOptions(model)).toEqual({ reasoningEffort: "high" })
   })
 })

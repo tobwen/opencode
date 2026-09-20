@@ -1,5 +1,5 @@
 import type { ModelMessage, ToolResultPart } from "ai"
-import { mergeDeep, unique } from "remeda"
+import { mergeDeep, omit, unique } from "remeda"
 import type { JSONSchema7 } from "@ai-sdk/provider"
 import type * as Provider from "./provider"
 import type * as ModelsDev from "@opencode-ai/core/models-dev"
@@ -1375,7 +1375,7 @@ export function options(input: {
 }
 
 export function smallOptions(model: Provider.Model) {
-  const small = Object.values(model.variants ?? {})[0] ?? {}
+  const small = omit(Object.values(model.variants ?? {})[0] ?? {}, ["recommendedOutput"])
   if (
     model.providerID === "openai" ||
     model.api.npm === "@ai-sdk/openai" ||

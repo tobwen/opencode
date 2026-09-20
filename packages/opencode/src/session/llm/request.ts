@@ -81,6 +81,8 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     !input.small && input.model.variants && input.user.model.variant
       ? input.model.variants[input.user.model.variant]
       : {}
+  // recommendedOutput is an opencode-internal knob; keep it out of provider options.
+  const { recommendedOutput: variantRecommendedOutput, ...variantOptions } = variant
   const base = input.small
     ? ProviderTransform.smallOptions(input.model)
     : ProviderTransform.options({
@@ -88,7 +90,10 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
         sessionID: input.sessionID,
         providerOptions: input.provider.options,
       })
-  const options = mergeOptions(mergeOptions(mergeOptions(base, input.model.options), input.agent.options), variant)
+  const options = mergeOptions(
+    mergeOptions(mergeOptions(base, input.model.options), input.agent.options),
+    variantOptions,
+  )
   if (
     input.model.api.npm === "@ai-sdk/azure" &&
     (input.provider.options.useCompletionUrls || input.model.options.useCompletionUrls || options.useCompletionUrls)
@@ -129,7 +134,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
       maxOutputTokens: ProviderTransform.maxOutputTokens(
         input.model,
         input.flags.outputTokenMax,
-        variant.recommendedOutput,
+        variantRecommendedOutput,
       ),
       options,
     },
