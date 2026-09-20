@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { displayCharAt, displaySlice, mentionTriggerIndex } from "../../src/prompt/display"
+import { displayCharAt, displaySlice, mentionTriggerIndex, parseMentionQuery } from "../../src/prompt/display"
 
 describe("prompt display", () => {
   test("uses display-width offsets for mentions", () => {
@@ -29,5 +29,28 @@ describe("prompt display", () => {
     expect(mentionTriggerIndex("hello@")).toBeUndefined()
     expect(mentionTriggerIndex("foo@bar.com")).toBeUndefined()
     expect(mentionTriggerIndex("中文 @src file")).toBeUndefined()
+  })
+})
+
+describe("parseMentionQuery", () => {
+  test("splits the mention trigger tiers", () => {
+    const cases = [
+      ["", { extraAts: 0, afterAts: "", literal: false, text: "" }],
+      ["src", { extraAts: 0, afterAts: "src", literal: false, text: "src" }],
+      ["@", { extraAts: 1, afterAts: "", literal: false, text: "" }],
+      ["@@", { extraAts: 2, afterAts: "", literal: false, text: "" }],
+      ["@src", { extraAts: 1, afterAts: "src", literal: false, text: "src" }],
+      ["@@src", { extraAts: 2, afterAts: "src", literal: false, text: "src" }],
+      ["!src", { extraAts: 0, afterAts: "!src", literal: true, text: "src" }],
+      ["@!src", { extraAts: 1, afterAts: "!src", literal: true, text: "src" }],
+      ["@@!src", { extraAts: 2, afterAts: "!src", literal: true, text: "src" }],
+      ["!!src", { extraAts: 0, afterAts: "!!src", literal: true, text: "!src" }],
+      ["@@src#12-20", { extraAts: 2, afterAts: "src#12-20", literal: false, text: "src#12-20" }],
+      ["@@!src#12", { extraAts: 2, afterAts: "!src#12", literal: true, text: "src#12" }],
+      ["@@日本語", { extraAts: 2, afterAts: "日本語", literal: false, text: "日本語" }],
+    ] as const
+    for (const [input, expected] of cases) {
+      expect(parseMentionQuery(input)).toEqual(expected)
+    }
   })
 })
