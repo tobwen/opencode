@@ -46,3 +46,19 @@ export function mentionTriggerIndex(value: string, offset = promptOffsetWidth(va
     return promptOffsetWidth(text.slice(0, index))
   }
 }
+
+export type MentionQuery = {
+  extraAts: number
+  afterAts: string
+  literal: boolean
+  text: string
+}
+
+// Splits the text after the "@" trigger into the count of extra "@" characters,
+// the query after those "@" characters, and the query with a leading "!" removed.
+export function parseMentionQuery(value: string): MentionQuery {
+  const extraAts = value.match(/^@+/)?.[0].length ?? 0
+  const afterAts = value.slice(extraAts)
+  const literal = afterAts.startsWith("!")
+  return { extraAts, afterAts, literal, text: literal ? afterAts.slice(1) : afterAts }
+}

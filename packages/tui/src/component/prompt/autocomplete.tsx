@@ -21,7 +21,7 @@ import { Locale } from "../../util/locale"
 import type { PromptInfo } from "../../prompt/history"
 import { useFrecency } from "../../prompt/frecency"
 import { useBindings, useCommandSlashes, useOpencodeModeStack } from "../../keymap"
-import { displayCharAt, mentionTriggerIndex } from "../../prompt/display"
+import { displayCharAt, mentionTriggerIndex, parseMentionQuery } from "../../prompt/display"
 import type { FileSystemEntry } from "@opencode-ai/sdk/v2"
 
 function removeLineRange(input: string) {
@@ -281,10 +281,9 @@ export function Autocomplete(props: {
 
   const referenceMatch = createMemo(() => {
     if (!store.visible || store.visible === "/") return
-    const s = search()
-    const leadingAts = s.match(/^@+/)?.[0].length ?? 0
-    if (leadingAts < 2) return
-    const { baseQuery } = extractLineRange(s.replace(/^@+/, ""))
+    const { extraAts, afterAts } = parseMentionQuery(search())
+    if (extraAts < 2) return
+    const { baseQuery } = extractLineRange(afterAts)
     const slash = baseQuery.indexOf("/")
     const alias = slash === -1 ? baseQuery : baseQuery.slice(0, slash)
     return references().find((item) => !item.hidden && item.name === alias)
@@ -320,18 +319,15 @@ export function Autocomplete(props: {
     () => ({ query: search(), location: location(), visible: store.visible }),
     async (input) => {
       if (!input.visible || input.visible === "/") return []
-      const leadingAts = (input.query ?? "").match(/^@+/)?.[0].length ?? 0
-      if (leadingAts >= 2) return []
-      const stripped = (input.query ?? "").replace(/^@+/, "")
-      const literal = stripped.startsWith("!")
-      const literalQuery = literal ? stripped.slice(1) : stripped
-      const { lineRange, baseQuery } = extractLineRange(literalQuery)
+      const { extraAts, literal, text } = parseMentionQuery(input.query ?? "")
+      if (extraAts >= 2) return []
+      const { lineRange, baseQuery } = extractLineRange(text)
 
       // Get files from SDK
       const result = await sdk.client.v2.fs.find({
         query: baseQuery,
         limit: "250",
-        type: leadingAts === 0 ? "file" : "directory",
+        type: extraAts === 0 ? "file" : "directory",
         location: {
           directory: input.location?.directory,
           workspace: input.location?.workspaceID ?? project.workspace.current(),
@@ -374,8 +370,7 @@ export function Autocomplete(props: {
 
   const mcpResources = createMemo(() => {
     if (!store.visible || store.visible === "/") return []
-    const leadingAts = search().match(/^@+/)?.[0].length ?? 0
-    if (leadingAts < 2) return []
+    if (parseMentionQuery(search()).extraAts < 2) return []
 
     const options: AutocompleteOption[] = []
     const width = props.anchor().width - 4
@@ -492,8 +487,9 @@ export function Autocomplete(props: {
     const commandsValue = commands()
     const searchValue = search()
 
-    const leadingAts = store.visible === "@" ? (searchValue.match(/^@+/)?.[0].length ?? 0) : 0
-    const strippedSearch = searchValue.replace(/^@+/, "").replace(/^!/, "")
+    const mention = parseMentionQuery(searchValue)
+    const leadingAts = store.visible === "@" ? mention.extraAts : 0
+    const strippedSearch = mention.text
 
     if (store.visible === "@" && leadingAts >= 2 && referenceMatchValue) {
       return referenceAliasesValue.filter((item) => item.display === `@${referenceMatchValue.name}`)
