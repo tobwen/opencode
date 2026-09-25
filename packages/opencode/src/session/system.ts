@@ -25,29 +25,42 @@ import { Reference } from "@opencode-ai/core/reference"
 import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 
+const BASES = {
+  anthropic: () => PROMPT_ANTHROPIC,
+  beast: () => PROMPT_BEAST,
+  codex: () => PROMPT_CODEX,
+  default: () => PROMPT_DEFAULT,
+  gemini: () => PROMPT_GEMINI,
+  gpt: () => PROMPT_GPT,
+  "gpt-astra": () => PROMPT_ASTRA,
+  kimi: () => PROMPT_KIMI,
+  meta: (model: Provider.Model) =>
+    PROMPT_META.replaceAll("{{MODEL_NAME}}", model.api.id.includes("muse-glimmer") ? "Muse Glimmer" : "Muse Spark"),
+  trinity: () => PROMPT_TRINITY,
+}
+
+export function bases(model: Provider.Model) {
+  return Object.fromEntries(Object.entries(BASES).map(([name, build]) => [name, build(model)]))
+}
+
 export function provider(model: Provider.Model) {
-  if (model.api.id.includes("muse")) {
-    const name = model.api.id.includes("muse-glimmer") ? "Muse Glimmer" : "Muse Spark"
-    return [PROMPT_META.replaceAll("{{MODEL_NAME}}", name)]
-  }
+  if (model.api.id.includes("muse")) return [BASES.meta(model)]
   if (model.api.id.includes("gpt-4") || model.api.id.includes("o1") || model.api.id.includes("o3"))
-    return [PROMPT_BEAST]
+    return [BASES.beast()]
   if (model.api.id.includes("gpt")) {
-    if (model.api.id.includes("gpt-6")) return [PROMPT_ASTRA]
-    if (model.api.id.includes("codex")) {
-      return [PROMPT_CODEX]
-    }
-    return [PROMPT_GPT]
+    if (model.api.id.includes("gpt-6")) return [BASES["gpt-astra"]()]
+    if (model.api.id.includes("codex")) return [BASES.codex()]
+    return [BASES.gpt()]
   }
-  if (model.api.id.includes("gemini-")) return [PROMPT_GEMINI]
-  if (model.api.id.includes("claude")) return [PROMPT_ANTHROPIC]
-  if (model.api.id.toLowerCase().includes("trinity")) return [PROMPT_TRINITY]
+  if (model.api.id.includes("gemini-")) return [BASES.gemini()]
+  if (model.api.id.includes("claude")) return [BASES.anthropic()]
+  if (model.api.id.toLowerCase().includes("trinity")) return [BASES.trinity()]
   if (
     model.api.id.toLowerCase().includes("kimi") ||
     ["kimi-for-coding", "moonshotai", "moonshotai-cn"].includes(model.providerID)
   )
-    return [PROMPT_KIMI]
-  return [PROMPT_DEFAULT]
+    return [BASES.kimi()]
+  return [BASES.default()]
 }
 
 export interface Interface {

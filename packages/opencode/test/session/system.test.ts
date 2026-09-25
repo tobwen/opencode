@@ -109,6 +109,26 @@ describe("session.system", () => {
     }
   })
 
+  test("exposes every base prompt by name with the model placeholder resolved", () => {
+    const bases = SystemPrompt.bases({ api: { id: "meta/muse-glimmer-30b" } } as Provider.Model)
+    expect(Object.keys(bases)).toEqual([
+      "anthropic",
+      "beast",
+      "codex",
+      "default",
+      "gemini",
+      "gpt",
+      "gpt-astra",
+      "kimi",
+      "meta",
+      "trinity",
+    ])
+    expect(bases.meta).toContain("using Meta Muse Glimmer.")
+    expect(bases.meta).not.toContain("{{MODEL_NAME}}")
+    expect(bases.anthropic).toBe(SystemPrompt.provider({ api: { id: "anthropic/claude" } } as Provider.Model)[0])
+    expect(bases.default).toBe(SystemPrompt.provider({ api: { id: "test-model" } } as Provider.Model)[0])
+  })
+
   it.effect("skills output is sorted by name and stable across calls", () =>
     Effect.gen(function* () {
       const prompt = yield* SystemPrompt.Service

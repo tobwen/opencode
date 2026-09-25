@@ -294,6 +294,14 @@ export interface Hooks {
       system: string[]
     },
   ) => Promise<void>
+  /**
+   * Replace the model family base prompt before the system prompt is joined.
+   * `input.bases` holds every base prompt by name, resolved for `input.model`.
+   */
+  "experimental.chat.system.base"?: (
+    input: { sessionID?: string; model: Model; agent: string; bases: Record<string, string> },
+    output: { prompt?: string },
+  ) => Promise<void>
   "experimental.provider.small_model"?: (input: { provider: ProviderV2 }, output: { model?: ModelV2 }) => Promise<void>
   /**
    * Called before session compaction starts. Allows plugins to customize

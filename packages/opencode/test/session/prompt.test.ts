@@ -8,6 +8,7 @@ import { EventV2Bridge } from "@/event-v2-bridge"
 import { expect } from "bun:test"
 import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
 import path from "path"
+import { pathToFileURL } from "url"
 import { fileURLToPath } from "url"
 import { NamedError } from "@opencode-ai/core/util/error"
 import { Agent as AgentSvc } from "../../src/agent/agent"
@@ -575,6 +576,49 @@ withMcpInstructions.instance(
       const body = JSON.stringify(hits[0]?.body)
       expect(body).toContain('<server name=\\"guide-server\\">')
       expect(body).toContain("Use lookup before mutate.")
+      yield* Fiber.interrupt(fiber)
+    }),
+  15_000,
+)
+
+const systemBaseHook = "experimental.chat.system.base"
+
+it.instance(
+  "system base hook replaces the model base prompt",
+  () =>
+    Effect.gen(function* () {
+      const { directory: dir } = yield* TestInstance
+      const server = yield* TestLLMServer
+      const file = path.join(dir, "base-prompt-plugin.ts")
+      yield* writeText(
+        file,
+        [
+          "export default async () => ({",
+          `  ${JSON.stringify(systemBaseHook)}: (input, output) => {`,
+          '    output.prompt = "base from plugin for " + input.agent + " with " + Object.keys(input.bases).join(",")',
+          "  },",
+          "})",
+        ].join("\n"),
+      )
+      yield* writeConfig(dir, { ...providerCfg(server.url), plugin: [pathToFileURL(file).href] })
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* server.hang
+      yield* user(chat.id, "hello")
+
+      const fiber = yield* prompt.loop({ sessionID: chat.id }).pipe(Effect.forkChild)
+      yield* awaitWithTimeout(server.wait(1), "timed out waiting for base prompt request", "10 seconds")
+
+      const hits = yield* server.hits
+      const body = JSON.stringify(hits[0]?.body)
+      expect(body).toContain(
+        "base from plugin for build with anthropic,beast,codex,default,gemini,gpt,gpt-astra,kimi,meta,trinity",
+      )
+      expect(body).not.toContain("Remember that your output will be displayed on a command line interface")
       yield* Fiber.interrupt(fiber)
     }),
   15_000,
