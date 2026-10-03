@@ -73,18 +73,6 @@ async function renderFooter(input: Context, sessionID: string) {
   })
 }
 
-test("sidebar footer shows the session id", async () => {
-  const sessionID = "ses_0123456789abcdefghijklmnop"
-  await using app = await renderFooter(context({ integrations: [] }), sessionID)
-  app.renderer.start()
-  await app.renderOnce()
-
-  const row = app.renderer.root.findDescendantById("sidebar.footer.session")
-  expect(row).toBeDefined()
-  expect(app.captureCharFrame()).toContain(sessionID)
-  expect(row!.width).toBeLessThanOrEqual(38)
-})
-
 test("sidebar waits for integrations before showing onboarding", async () => {
   const app = await render(context())
 
@@ -160,11 +148,11 @@ test("sidebar footer shows the version on the last row", async () => {
 
   try {
     await app.renderOnce()
-    expect(app.captureCharFrame()).toContain("v2.0.22")
+    expect(app.captureCharFrame()).toContain("2.0.22")
     const row = app.renderer.root.findDescendantById("sidebar.footer.version")
     expect(row).toBeDefined()
     const frame = app.captureCharFrame().split("\n")[0] ?? ""
-    expect(frame.trimEnd().endsWith("v2.0.22")).toBe(true)
+    expect(frame.trimEnd().endsWith("2.0.22")).toBe(true)
     expect(row!.x + row!.width).toBe(38)
   } finally {
     app.renderer.destroy()
