@@ -13,6 +13,8 @@ import { SESSION_TABS_COMPACT_WIDTH } from "../../src/ui/layout"
 import { emptyThemeSource } from "../fixture/fixture"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { createTuiResolvedConfig } from "../fixture/tui-runtime"
+import { DialogProvider } from "../../src/ui/dialog"
+import { ToastProvider } from "../../src/ui/toast"
 
 test("compact rail renders and controls session tabs", async () => {
   const [active, setActive] = createSignal("first")
@@ -40,19 +42,28 @@ test("compact rail renders and controls session tabs", async () => {
   const app = await testRender(
     () => (
       <TestTuiContexts>
-        <ConfigProvider config={createTuiResolvedConfig({ tabs: { indicators: "status" } })}>
+        <ConfigProvider
+          config={createTuiResolvedConfig({
+            tabs: { indicators: "status" },
+            session: { confirm_tab_close: false },
+          })}
+        >
           <Keymap.Provider>
             <ThemeProvider mode="dark" source={emptyThemeSource}>
-              <box width="100%" height="100%" flexDirection="row">
-                <SessionTabs
-                  controller={controller}
-                  orientation="vertical"
-                  animations={false}
-                  indicators={indicators()}
-                  width={SESSION_TABS_COMPACT_WIDTH}
-                />
-                <text>transcript</text>
-              </box>
+              <ToastProvider>
+                <DialogProvider>
+                  <box width="100%" height="100%" flexDirection="row">
+                    <SessionTabs
+                      controller={controller}
+                      orientation="vertical"
+                      animations={false}
+                      indicators={indicators()}
+                      width={SESSION_TABS_COMPACT_WIDTH}
+                    />
+                    <text>transcript</text>
+                  </box>
+                </DialogProvider>
+              </ToastProvider>
             </ThemeProvider>
           </Keymap.Provider>
         </ConfigProvider>
@@ -70,19 +81,7 @@ test("compact rail renders and controls session tabs", async () => {
         .split("\n")
         .slice(0, 11)
         .map((line) => line.slice(0, 5)),
-    ).toEqual([
-      "▄▄▄▄▄",
-      "  ⌕  ",
-      "▄▄▄▄▄",
-      "  F  ",
-      "▀▀▀▀▀",
-      "  S  ",
-      "     ",
-      "  T  ",
-      "     ",
-      "  +  ",
-      "     ",
-    ])
+    ).toEqual(["▄▄▄▄▄", "  ⌕  ", "▄▄▄▄▄", "  F  ", "▀▀▀▀▀", "  S  ", "     ", "  T  ", "     ", "  +  ", "     "])
     expect(app.captureCharFrame().split("\n")[0].indexOf("transcript")).toBe(5)
     expect(app.captureCharFrame()).not.toContain("First session")
     expect(
@@ -96,11 +95,7 @@ test("compact rail renders and controls session tabs", async () => {
 
     setIndicators("numbers")
     await app.waitForFrame((frame) => frame.split("\n")[5].slice(0, 5).trim() === "2")
-    expect([3, 5, 7].map((row) => app.captureCharFrame().split("\n")[row].slice(0, 5).trim())).toEqual([
-      "1",
-      "2",
-      "3",
-    ])
+    expect([3, 5, 7].map((row) => app.captureCharFrame().split("\n")[row].slice(0, 5).trim())).toEqual(["1", "2", "3"])
     setIndicators("status")
     setStatus(EMPTY_SESSION_TAB_STATUS)
 
@@ -115,7 +110,9 @@ test("compact rail renders and controls session tabs", async () => {
     await app.mockMouse.drag(2, 3, 2, 7)
     expect(items().map((tab) => tab.sessionID)).toEqual(["second", "third", "first"])
 
-    setItems(Array.from({ length: 40 }, (_, index) => ({ sessionID: `tab-${index + 1}`, title: `Session ${index + 1}` })))
+    setItems(
+      Array.from({ length: 40 }, (_, index) => ({ sessionID: `tab-${index + 1}`, title: `Session ${index + 1}` })),
+    )
     setActive("tab-40")
     setIndicators("numbers")
     await app.waitForFrame((frame) => frame.split("\n").some((line) => line.slice(0, 5).trim() === "40"))
