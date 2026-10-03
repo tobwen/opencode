@@ -4,18 +4,21 @@ import { RGBA } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import type { Context } from "@opencode/plugin/tui/context"
 import { createStore, produce } from "solid-js/store"
-import { SidebarOnboarding } from "../../src/feature-plugins/sidebar/footer"
+import { SidebarFooter, SidebarOnboarding, SidebarVersion } from "../../src/feature-plugins/sidebar/footer"
+import { renderLocal } from "../fixture/local"
 
 function context(options?: {
   dismissed?: boolean
   integrations?: Array<{ connections: unknown[] }>
   dispatched?: string[]
+  sessionID?: string
 }) {
   const color = RGBA.fromInts(200, 200, 200)
   const [onboarding, setOnboarding] = createStore({ dismissed: options?.dismissed ?? false })
   const location = { directory: "/workspace" }
   return {
     location,
+    app: { version: "2.0.22", channel: "stable" },
     theme: {
       background: { raised: { high: color } },
       text: { base: color, muted: color },
@@ -59,6 +62,28 @@ async function render(input: Context, height = 22) {
   await app.renderOnce()
   return app
 }
+
+async function renderFooter(input: Context, sessionID: string) {
+  return await renderLocal({
+    children: () => (
+      <box width={38}>
+        <SidebarFooter context={input} sessionID={sessionID} />
+      </box>
+    ),
+  })
+}
+
+test("sidebar footer shows the session id", async () => {
+  const sessionID = "ses_0123456789abcdefghijklmnop"
+  await using app = await renderFooter(context({ integrations: [] }), sessionID)
+  app.renderer.start()
+  await app.renderOnce()
+
+  const row = app.renderer.root.findDescendantById("sidebar.footer.session")
+  expect(row).toBeDefined()
+  expect(app.captureCharFrame()).toContain(sessionID)
+  expect(row!.width).toBeLessThanOrEqual(38)
+})
 
 test("sidebar waits for integrations before showing onboarding", async () => {
   const app = await render(context())
@@ -120,6 +145,27 @@ test("sidebar onboarding opens integrations and can be dismissed", async () => {
     await app.mockMouse.click(dismiss.x, dismiss.y)
     await app.renderOnce()
     expect(app.captureCharFrame()).not.toContain("Getting started")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("sidebar footer shows the version on the last row", async () => {
+  const color = RGBA.fromInts(200, 200, 200)
+  const input = {
+    app: { version: "2.0.22", channel: "stable" },
+    theme: { text: { base: color, muted: color } },
+  } as unknown as Context
+  const app = await testRender(() => <SidebarVersion context={input} />, { width: 38, height: 1 })
+
+  try {
+    await app.renderOnce()
+    expect(app.captureCharFrame()).toContain("v2.0.22")
+    const row = app.renderer.root.findDescendantById("sidebar.footer.version")
+    expect(row).toBeDefined()
+    const frame = app.captureCharFrame().split("\n")[0] ?? ""
+    expect(frame.trimEnd().endsWith("v2.0.22")).toBe(true)
+    expect(row!.x + row!.width).toBe(38)
   } finally {
     app.renderer.destroy()
   }
