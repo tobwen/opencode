@@ -74,7 +74,17 @@ export function SidebarOnboarding(props: { context: Plugin.Context; sessionID: s
   )
 }
 
-function SidebarFooter(props: { context: Plugin.Context; sessionID: string }) {
+export function SidebarVersion(props: { context: Plugin.Context }) {
+  return (
+    <box id="sidebar.footer.version" flexDirection="row" justifyContent="flex-end">
+      <text fg={props.context.theme.text.muted} wrapMode="none">
+        v{props.context.app.version}
+      </text>
+    </box>
+  )
+}
+
+export function SidebarFooter(props: { context: Plugin.Context; sessionID: string }) {
   const session = createMemo(() => props.context.data.session.get(props.sessionID))
   const move = usePromptMove({
     projectID: () => session()?.projectID,
@@ -109,6 +119,10 @@ function SidebarFooter(props: { context: Plugin.Context; sessionID: string }) {
           </box>
         )}
       </Show>
+      <text id="sidebar.footer.session" fg={props.context.theme.text.muted} wrapMode="none" truncate>
+        {props.sessionID}
+      </text>
+      <SidebarVersion context={props.context} />
     </box>
   )
 }
