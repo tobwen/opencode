@@ -52,6 +52,7 @@ import { Keymap } from "../context/keymap"
 import "./spinner-renderable"
 import { SPINNER_FRAMES } from "./spinner-frames"
 import { SessionTabsRailControls, SessionTabHalfRow } from "./session-tabs-rail"
+import { useCloseSessionTab } from "./session-tabs-close"
 import "./title-shimmer"
 
 export const TAB_SPINNERS = {
@@ -111,6 +112,7 @@ export const EMPTY_SESSION_TAB_STATUS: SessionTabsStatus = {
 export type SessionTabsController = Pick<ContextController, "tabs" | "current" | "select" | "close" | "move"> & {
   newTab?: () => boolean
   add?: () => void
+  setCloseConfirmer?: ContextController["setCloseConfirmer"]
   recentlyClosed?: ContextController["recentlyClosed"]
   reopen?: ContextController["reopen"]
   detail?: (sessionID: string) => string | undefined
@@ -513,6 +515,10 @@ export function SessionTabs(
   } = {},
 ) {
   const config = useConfig().data
+  const controller = props.controller ?? useSessionTabs()
+  const confirmClose = useCloseSessionTab(controller)
+  createEffect(() => controller.setCloseConfirmer?.(confirmClose))
+  onCleanup(() => controller.setCloseConfirmer?.(undefined))
 
   return (
     <Switch>
@@ -602,9 +608,7 @@ function VerticalSessionTabs(props: {
     return moveSessionTab(tabs.tabs(), pending.sessionID, pending.index)
   })
   const items = ordered
-  const highlightColor = createMemo(() =>
-    tint(background(), actionHovered(), actionHovered().a),
-  )
+  const highlightColor = createMemo(() => tint(background(), actionHovered(), actionHovered().a))
   const highlighted = (sessionID: string | undefined) =>
     sessionID !== undefined && (activeID() === sessionID || hovered() === sessionID || dragging() === sessionID)
   const addHighlighted = () => newTab() || addHovered()
@@ -856,9 +860,7 @@ function VerticalSessionTabs(props: {
               const separatorUpperColor = createMemo(() =>
                 tint(background(), previousGlowHue(), 0.1 * previousGlowLevel()),
               )
-              const separatorLowerColor = createMemo(() =>
-                tint(background(), glowHue(), 0.12 * glowLevel()),
-              )
+              const separatorLowerColor = createMemo(() => tint(background(), glowHue(), 0.12 * glowLevel()))
               const titleColor = (index: number, separator: boolean) => {
                 const level = titleGlow.value().level
                 const color =
@@ -923,9 +925,7 @@ function VerticalSessionTabs(props: {
                         edge="top"
                         width={width()}
                         color={pulseBackground()}
-                        background={
-                          highlighted(items()[index() - 1]?.sessionID) ? highlightColor() : background()
-                        }
+                        background={highlighted(items()[index() - 1]?.sessionID) ? highlightColor() : background()}
                       />
                       <SessionTabHalfRow
                         top={1}
