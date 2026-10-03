@@ -9,6 +9,7 @@ import { PromptFooter } from "../../src/feature-plugins/prompt/footer"
 test("prompt footer separates simultaneous subagent, shell, and usage status", async () => {
   const color = RGBA.fromInts(200, 200, 200)
   const subdued = RGBA.fromInts(100, 100, 100)
+  const highlighted = RGBA.fromInts(240, 240, 240)
   const dispatched: string[] = []
   const context = {
     location: { directory: "/workspace" },
@@ -16,6 +17,7 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
       text: {
         base: color,
         muted: subdued,
+        action: { primary: { hovered: highlighted } },
       },
     },
     keymap: {
@@ -59,6 +61,32 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
 
     await app.mockMouse.click(2, 0)
     expect(dispatched).toEqual(["session.child.first"])
+
+    const hint = app
+      .captureCharFrame()
+      .split("\n")
+      .find((line) => line.includes("ctrl+p commands"))
+    expect(hint).toBeDefined()
+    const row = app.captureCharFrame().split("\n").indexOf(hint!)
+    const column = hint!.indexOf("ctrl+p commands")
+    const commandsColor = () => {
+      const span = app
+        .captureSpans()
+        .lines.flatMap((line) => line.spans)
+        .find((candidate) => candidate.text.includes("commands"))
+      if (!span) throw new Error("commands span not found")
+      return span.fg.toInts()
+    }
+
+    expect(commandsColor()).toEqual(subdued.toInts())
+    await app.mockMouse.moveTo(column + 1, row)
+    await app.renderOnce()
+    expect(commandsColor()).toEqual(highlighted.toInts())
+    await app.mockMouse.click(column + 1, row)
+    expect(dispatched).toEqual(["session.child.first", "command.palette.show"])
+    await app.mockMouse.moveTo(0, 0)
+    await app.renderOnce()
+    expect(commandsColor()).toEqual(subdued.toInts())
   } finally {
     app.renderer.destroy()
   }
@@ -109,12 +137,7 @@ test("prompt footer can hide details", async () => {
   const app = await testRender(
     () => (
       <box width="100%" flexDirection="row" justifyContent="space-between" gap={2}>
-        <PromptFooter
-          context={context}
-          sessionID={sessionID()}
-          mode="normal"
-          showDetails={showDetails()}
-        />
+        <PromptFooter context={context} sessionID={sessionID()} mode="normal" showDetails={showDetails()} />
       </box>
     ),
     {

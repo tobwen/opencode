@@ -19,6 +19,7 @@ export function PromptFooter(props: {
 }) {
   const dimensions = useTerminalDimensions()
   const [liveHovered, setLiveHovered] = createSignal(false)
+  const [commandsHovered, setCommandsHovered] = createSignal(false)
   const subagents = createMemo(() => {
     if (!props.sessionID) return 0
     const count = props.context.data.session
@@ -108,15 +109,31 @@ export function PromptFooter(props: {
           </Match>
         </Switch>
         <Show when={props.showDetails && layout().shortcuts}>
-          <text
-            fg={interactive() ? props.context.theme.text.base : props.context.theme.text.action.primary.disabled}
-            attributes={interactive() ? 0 : TextAttributes.DIM}
-            wrapMode="none"
+          <box
             flexShrink={0}
+            onMouseOver={() => setCommandsHovered(true)}
+            onMouseOut={() => setCommandsHovered(false)}
+            onMouseUp={() => props.context.keymap.dispatch("command.palette.show")}
           >
-            {shortcut("command.palette.show")}{" "}
-            <span style={interactive() ? { fg: props.context.theme.text.muted } : {}}>commands</span>
-          </text>
+            <text
+              fg={interactive() ? props.context.theme.text.base : props.context.theme.text.action.primary.disabled}
+              attributes={interactive() ? 0 : TextAttributes.DIM}
+              wrapMode="none"
+            >
+              {shortcut("command.palette.show")}{" "}
+              <span
+                style={{
+                  fg: commandsHovered()
+                    ? props.context.theme.text.action.primary.hovered
+                    : interactive()
+                      ? props.context.theme.text.muted
+                      : {},
+                }}
+              >
+                commands
+              </span>
+            </text>
+          </box>
         </Show>
       </Match>
       <Match when={props.mode === "shell"}>
