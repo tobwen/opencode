@@ -9,6 +9,9 @@ import { ThemeProvider } from "../../src/context/theme"
 import { emptyThemeSource } from "../fixture/fixture"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { createTuiResolvedConfig } from "../fixture/tui-runtime"
+import { DialogProvider } from "../../src/ui/dialog"
+import { Keymap } from "../../src/context/keymap"
+import { ToastProvider } from "../../src/ui/toast"
 
 test("releasing a transcript selection over tab controls does not activate them", async () => {
   const [active, setActive] = createSignal("first")
@@ -28,12 +31,20 @@ test("releasing a transcript selection over tab controls does not activate them"
   const app = await testRender(
     () => (
       <TestTuiContexts>
-        <ConfigProvider config={createTuiResolvedConfig({ tabs: { mode: "on" } })}>
+        <ConfigProvider
+          config={createTuiResolvedConfig({ tabs: { mode: "on" }, session: { confirm_tab_close: false } })}
+        >
           <ThemeProvider mode="dark" source={emptyThemeSource}>
-            <box flexDirection="column">
-              <SessionTabs controller={controller} animations={false} />
-              <text>selectable transcript text</text>
-            </box>
+            <ToastProvider>
+              <Keymap.Provider>
+                <DialogProvider>
+                  <box flexDirection="column">
+                    <SessionTabs controller={controller} animations={false} />
+                    <text>selectable transcript text</text>
+                  </box>
+                </DialogProvider>
+              </Keymap.Provider>
+            </ToastProvider>
           </ThemeProvider>
         </ConfigProvider>
       </TestTuiContexts>
@@ -79,9 +90,17 @@ test("middle-click closes a session tab without selecting it", async () => {
   const app = await testRender(
     () => (
       <TestTuiContexts>
-        <ConfigProvider config={createTuiResolvedConfig({ tabs: { mode: "on" } })}>
+        <ConfigProvider
+          config={createTuiResolvedConfig({ tabs: { mode: "on" }, session: { confirm_tab_close: false } })}
+        >
           <ThemeProvider mode="dark" source={emptyThemeSource}>
-            <SessionTabs controller={controller} animations={false} />
+            <ToastProvider>
+              <Keymap.Provider>
+                <DialogProvider>
+                  <SessionTabs controller={controller} animations={false} />
+                </DialogProvider>
+              </Keymap.Provider>
+            </ToastProvider>
           </ThemeProvider>
         </ConfigProvider>
       </TestTuiContexts>
@@ -127,9 +146,17 @@ test("keeps consecutive close controls fixed across overflow window changes", as
   const app = await testRender(
     () => (
       <TestTuiContexts>
-        <ConfigProvider config={createTuiResolvedConfig({ tabs: { mode: "on" } })}>
+        <ConfigProvider
+          config={createTuiResolvedConfig({ tabs: { mode: "on" }, session: { confirm_tab_close: false } })}
+        >
           <ThemeProvider mode="dark" source={emptyThemeSource}>
-            <SessionTabs controller={controller} animations={false} />
+            <ToastProvider>
+              <Keymap.Provider>
+                <DialogProvider>
+                  <SessionTabs controller={controller} animations={false} />
+                </DialogProvider>
+              </Keymap.Provider>
+            </ToastProvider>
           </ThemeProvider>
         </ConfigProvider>
       </TestTuiContexts>
@@ -178,12 +205,20 @@ test("reflows held tabs when the pointer leaves the strip", async () => {
   const app = await testRender(
     () => (
       <TestTuiContexts>
-        <ConfigProvider config={createTuiResolvedConfig({ tabs: { mode: "on" } })}>
+        <ConfigProvider
+          config={createTuiResolvedConfig({ tabs: { mode: "on" }, session: { confirm_tab_close: false } })}
+        >
           <ThemeProvider mode="dark" source={emptyThemeSource}>
-            <box flexDirection="column">
-              <SessionTabs controller={controller} animations={false} />
-              <text>outside</text>
-            </box>
+            <ToastProvider>
+              <Keymap.Provider>
+                <DialogProvider>
+                  <box flexDirection="column">
+                    <SessionTabs controller={controller} animations={false} />
+                    <text>outside</text>
+                  </box>
+                </DialogProvider>
+              </Keymap.Provider>
+            </ToastProvider>
           </ThemeProvider>
         </ConfigProvider>
       </TestTuiContexts>

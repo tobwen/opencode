@@ -161,6 +161,15 @@ export const settings: Setting[] = [
     keywords: ["tab numbers", "number mode", "status icons"],
   },
   {
+    title: "Confirm close",
+    category: "Tabs",
+    path: ["session", "confirm_tab_close"],
+    default: true,
+    values: [false, true],
+    labels: ["off", "on"],
+    keywords: ["ask before closing a tab", "confirmation", "close"],
+  },
+  {
     title: "Layout",
     category: "Diffs",
     path: ["diffs", "view"],

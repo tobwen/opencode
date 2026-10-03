@@ -20,7 +20,7 @@ function render(state: string) {
   return createAppFixture({
     state,
     args: { sessionID: session.id },
-    config: { animations: false, tabs: { mode: "on" } },
+    config: { animations: false, tabs: { mode: "on" }, session: { confirm_tab_close: false } },
     fetch: (url) => {
       if (url.pathname === "/api/fs/list") return json({ location, data: [] })
       if (url.pathname === "/api/location") return json(location)
@@ -59,9 +59,7 @@ test("/new keeps the active session tab", async () => {
   await setup.waitForFrame((frame) => frame.includes("Session to clear"))
   await setup.mockInput.typeText("/new")
   setup.mockInput.pressEnter()
-  const frame = await setup.waitForFrame(
-    (frame) => frame.includes("New session") && frame.includes("Session to clear"),
-  )
+  const frame = await setup.waitForFrame((frame) => frame.includes("New session") && frame.includes("Session to clear"))
 
   expect(frame).toContain("Session to clear")
 })
