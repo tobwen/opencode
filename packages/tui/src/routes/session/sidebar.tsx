@@ -29,6 +29,9 @@ export function Sidebar(props: { sessionID: string }) {
         paddingRight={2}
         position="relative"
       >
+        <text fg={theme.text.muted} wrapMode="none" truncate>
+          {props.sessionID}
+        </text>
         <box flexShrink={0} paddingRight={2} paddingBottom={1}>
           <title_shimmer
             fg={theme.text.base}
