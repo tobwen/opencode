@@ -151,6 +151,9 @@ export const Info = Schema.Struct({
       sidebar: Schema.optional(Schema.Literals(["auto", "hide"])).annotate({
         description: "Session sidebar visibility; 'auto' shows it when space permits",
       }),
+      confirm_tab_close: Schema.optional(Schema.Boolean).annotate({
+        description: "Ask for confirmation before closing a session tab",
+      }),
       scrollbar: Schema.optional(Schema.Boolean).annotate({ description: "Show the session transcript scrollbar" }),
       thinking: Schema.optional(Schema.Literals(["show", "hide"])).annotate({
         description: "Show or hide model reasoning by default",
@@ -319,6 +322,7 @@ export function resolve(
       ...input.session,
       new_location: input.session?.new_location ?? "launch",
       permissions: input.session?.permissions ?? "prompt",
+      confirm_tab_close: input.session?.confirm_tab_close ?? true,
       tps: input.session?.tps ?? true,
     },
     tabs: {

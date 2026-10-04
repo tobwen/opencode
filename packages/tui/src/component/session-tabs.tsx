@@ -52,6 +52,7 @@ import { Keymap } from "../context/keymap"
 import { registerOpencodeSpinner } from "./register-spinner"
 import { SPINNER_FRAMES } from "./spinner-frames"
 import { SessionTabsRailControls, SessionTabHalfRow } from "./session-tabs-rail"
+import { useCloseSessionTab } from "./session-tabs-close"
 import "./title-shimmer"
 
 registerOpencodeSpinner()
@@ -113,6 +114,7 @@ export const EMPTY_SESSION_TAB_STATUS: SessionTabsStatus = {
 export type SessionTabsController = Pick<ContextController, "tabs" | "current" | "select" | "close" | "move"> & {
   newTab?: () => boolean
   add?: () => void
+  setCloseConfirmer?: ContextController["setCloseConfirmer"]
   recentlyClosed?: ContextController["recentlyClosed"]
   reopen?: ContextController["reopen"]
   detail?: (sessionID: string) => string | undefined
@@ -515,6 +517,10 @@ export function SessionTabs(
   } = {},
 ) {
   const config = useConfig().data
+  const controller = props.controller ?? useSessionTabs()
+  const confirmClose = useCloseSessionTab(controller)
+  createEffect(() => controller.setCloseConfirmer?.(confirmClose))
+  onCleanup(() => controller.setCloseConfirmer?.(undefined))
 
   return (
     <Switch>

@@ -67,6 +67,8 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
     const storage = useStorage()
     const enabled = () => config.tabs.enabled
     const [focused, setFocused] = createSignal<boolean>()
+    // The dialog provider sits below this one, so the tab strip hands in a confirmation callback.
+    const [closeConfirmer, setConfirmer] = createSignal<((sessionID: string, closeNow: () => void) => void) | undefined>()
     // Keyed reconcile keeps tab object identity across reorders, so strip rows move instead of
     // mutating in place, which per-row animations and drag state depend on.
     const [store, updateStore] = storage.store<PersistedState>("tabs", {
@@ -427,10 +429,24 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
           if (route.data.type === "home" && session) route.navigate({ type: "session", sessionID: session })
           return
         }
-        const index = state().tabs.findIndex((tab) => tab.sessionID === target)
-        const tab = state().tabs[index]
-        if (tab) setClosedTabs((entries) => recordClosedSessionTab(entries, tab, index))
-        remove(target, true)
+        const perform = () => {
+          const index = state().tabs.findIndex((tab) => tab.sessionID === target)
+          const tab = state().tabs[index]
+          if (tab) setClosedTabs((entries) => recordClosedSessionTab(entries, tab, index))
+          remove(target, true)
+        }
+        // Every close path lands here, so the confirmation is asked once instead of per caller.
+        // perform is handed over so the confirmed close cannot re-enter this branch.
+        const confirm = closeConfirmer()
+        if (config.session.confirm_tab_close && confirm) {
+          confirm(target, perform)
+          return
+        }
+        perform()
+      },
+      setCloseConfirmer(confirm: ((sessionID: string, closeNow: () => void) => void) | undefined) {
+        // Solid reads a bare function argument as an updater, so wrap it.
+        setConfirmer(() => confirm)
       },
       reopen(sessionID?: string) {
         if (!enabled()) return
