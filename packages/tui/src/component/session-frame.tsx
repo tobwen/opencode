@@ -45,9 +45,11 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   const paneResize = createPaneResize({
     value: () => layout.paneWidth ?? layout.terminalWidth ?? defaultPaneWidth(),
     defaultValue: defaultPaneWidth,
-    clamp: (width) => clampSessionPaneWidth(width, panels.width()),
-    fromMouse: (event) => dimensions().width - event.x - 1,
-    contains: (event, width) => event.x >= dimensions().width - width - 1 && event.x <= dimensions().width - width,
+    clamp: (width) => clampSessionPaneWidth(width, panels.width() - paneRightInset()),
+    fromMouse: (event) => dimensions().width - paneRightInset() - event.x - 1,
+    contains: (event, width) =>
+      event.x >= dimensions().width - paneRightInset() - width - 1 &&
+      event.x <= dimensions().width - paneRightInset() - width,
     onCommit: (width) => {
       void updateLayout((draft) => {
         draft.paneWidth = width
@@ -97,10 +99,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
         if (terminal) void sessions.selectTerminal(props.sessionID, null).catch(toast.error)
         return
       }
-      if (terminal && terminal !== previous?.[1]) {
-        setSidebarOpen(false)
-        if (panel) panels.close()
-      }
+      if (terminal && terminal !== previous?.[1] && panel) panels.close()
     }),
   )
   const wide = createMemo(() => dimensions().width - props.verticalTabsWidth > 120)
@@ -115,6 +114,11 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
     if (selectedTerminal()) return "terminal"
     if (sidebarVisible()) return "sidebar"
   })
+  // The right column has room for both panes, so a terminal no longer replaces the sidebar.
+  const splitPane = createMemo(() => wide() && sidebarVisible() && !activePanel() && selectedTerminal() !== undefined)
+  const terminalVisible = createMemo(() => rightPane() === "terminal" || splitPane())
+  // In split mode the sidebar owns the far right, so the pane keeps that inset reserved.
+  const paneRightInset = () => (splitPane() ? SESSION_SIDEBAR_WIDTH : 0)
   const toggleSidebar = () => {
     batch(() => {
       const visible = rightPane() === "sidebar"
@@ -145,7 +149,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   }
   const onFocused = () => {
     const current = renderer.currentFocusedRenderable
-    if (rightPane() !== "sidebar" && within(current, rightNode)) setActivePane("right")
+    if ((terminalVisible() || activePanel() !== undefined) && within(current, rightNode)) setActivePane("right")
     if (!fullscreen() && within(current, sessionNode)) setActivePane("session")
   }
   renderer.on(CliRenderEvents.FOCUSED_RENDERABLE, onFocused)
@@ -154,7 +158,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
     if (fullscreen()) focusRightPane()
   })
   createEffect(() => {
-    if (rightPane() !== "terminal" && rightPane() !== "panel") setActivePane("session")
+    if (!terminalVisible() && !activePanel()) setActivePane("session")
   })
   createEffect(() => {
     if (!restoreTerminalFocus() || selectedTerminal()) return
@@ -163,7 +167,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   })
   Keymap.createLayer(() => ({
     mode: "global",
-    enabled: () => (rightPane() === "terminal" || activePanel() !== undefined) && dialog.stack.length === 0,
+    enabled: () => (terminalVisible() || activePanel() !== undefined) && dialog.stack.length === 0,
     commands: [
       {
         id: "pane.focus.left",
@@ -197,12 +201,12 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
         ? [
             {
               id: "terminal.toggle",
-              title: rightPane() === "terminal" ? "Hide terminal pane" : "Show terminal pane",
+              title: terminalVisible() ? "Hide terminal pane" : "Show terminal pane",
               group: "Session",
               palette: true as const,
               run: () => {
                 dialog.clear()
-                if (rightPane() === "terminal") {
+                if (terminalVisible()) {
                   focusSession()
                   void sessions.selectTerminal(props.sessionID, null).catch(toast.error)
                   return
@@ -235,7 +239,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
               title: "Close terminal pane",
               group: "Session",
               palette: true as const,
-              enabled: rightPane() === "terminal",
+              enabled: terminalVisible,
               run: () => {
                 dialog.clear()
                 focusSession()
@@ -291,8 +295,8 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
             promptMuted={activePane() !== "session"}
             sidebarVisible={rightPane() === "sidebar"}
             onToggleSidebar={toggleSidebar}
-            terminals={sessions.available()}
-            visibleTerminalID={rightPane() === "terminal" ? selectedTerminal()?.id : undefined}
+terminals={sessions.available()}
+            visibleTerminalID={terminalVisible() ? selectedTerminal()?.id : undefined}
             onTerminalPicker={(show) => (showTerminals = show)}
             width={sessionWidth()}
           />
@@ -379,8 +383,17 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
           </Show>
         </box>
       </Show>
-      <Show when={!fullscreen() && (rightPane() === "terminal" || rightPane() === "panel") && availableWidth() >= 3}>
-        <PaneResizeHandle resize={paneResize} left={availableWidth() - paneResize.size() - 1} highlight="right" />
+      <Show when={splitPane()}>
+        <box flexShrink={0} width={SESSION_SIDEBAR_WIDTH} minWidth={0} minHeight={0}>
+          <Sidebar sessionID={props.sessionID} />
+        </box>
+      </Show>
+      <Show when={!fullscreen() && (terminalVisible() || activePanel() !== undefined) && availableWidth() >= 3}>
+        <PaneResizeHandle
+          resize={paneResize}
+          left={availableWidth() - paneResize.size() - 1 - paneRightInset()}
+          highlight="right"
+        />
       </Show>
       <Show when={rightPane() === "sidebar" && !wide()}>
         <box
