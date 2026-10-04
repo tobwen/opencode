@@ -13,7 +13,8 @@ import { createTuiResolvedConfig } from "../fixture/tui-runtime"
 
 async function setup(input: { confirm: boolean }) {
   const closed: Array<string | undefined> = []
-  const confirmers: Array<((sessionID: string) => void) | undefined> = []
+  const performed: Array<string> = []
+  const confirmers: Array<((sessionID: string, closeNow: () => void) => void) | undefined> = []
   const controller = {
     tabs: () => [
       { sessionID: "first", title: "First" },
@@ -25,7 +26,7 @@ async function setup(input: { confirm: boolean }) {
     move() {},
     add() {},
     status: () => EMPTY_SESSION_TAB_STATUS,
-    setCloseConfirmer: (confirm?: (sessionID: string) => void) => confirmers.push(confirm),
+    setCloseConfirmer: (confirm?: (sessionID: string, closeNow: () => void) => void) => confirmers.push(confirm),
   } satisfies SessionTabsController
 
   const app = await testRender(
@@ -50,30 +51,43 @@ async function setup(input: { confirm: boolean }) {
   await app.waitForFrame((frame) => frame.includes("Second"))
   // The strip hands the callback to the controller, which is the only place that asks.
   const confirm = confirmers.at(-1)
-  return { app, closed, confirm: () => confirm!("second") }
+  return {
+    app,
+    closed,
+    performed,
+    ask: () =>
+      confirm!("second", () => {
+        performed.push("second")
+      }),
+  }
 }
 
 test("asking the confirmation keeps the tab open until Close is chosen", async () => {
-  const { app, closed, confirm } = await setup({ confirm: true })
+  const { app, closed, performed, ask } = await setup({ confirm: true })
 
   try {
-    confirm()
+    ask()
     await app.waitForFrame((frame) => frame.includes("Close tab"))
     expect(closed).toEqual([])
 
     app.mockInput.pressEnter()
     await app.renderOnce()
     expect(closed).toEqual([])
+    expect(performed).toEqual([])
     expect(app.captureCharFrame()).not.toContain("Close tab")
 
-    confirm()
+    ask()
     await app.waitForFrame((frame) => frame.includes("Close tab"))
     const rows = (await app.captureCharFrame()).split("\n")
     const row = rows.findIndex((line) => line.trim() === "Close")
     if (row < 0) throw new Error("Close option not rendered")
     await app.mockMouse.click(rows[row]!.indexOf("Close") + 1, row)
     await app.renderOnce()
-    expect(closed).toEqual(["second"])
+    // The confirmed close must run the callback the controller handed over. Calling the
+    // controller again would ask a second time and leave the tab open.
+    expect(performed).toEqual(["second"])
+    expect(closed).toEqual([])
+    expect(app.captureCharFrame()).not.toContain("Close tab")
   } finally {
     app.renderer.destroy()
   }
