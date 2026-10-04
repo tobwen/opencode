@@ -4,7 +4,7 @@ import { RGBA } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import type { Context } from "@opencode/plugin/tui/context"
 import { createStore, produce } from "solid-js/store"
-import { SidebarFooter, SidebarOnboarding, SidebarVersion } from "../../src/feature-plugins/sidebar/footer"
+import { SidebarFooter, SidebarOnboarding } from "../../src/feature-plugins/sidebar/footer"
 import { renderLocal } from "../fixture/local"
 
 function context(options?: {
@@ -139,22 +139,18 @@ test("sidebar onboarding opens integrations and can be dismissed", async () => {
 })
 
 test("sidebar footer shows the version on the last row", async () => {
-  const color = RGBA.fromInts(200, 200, 200)
-  const input = {
-    app: { version: "2.0.22", channel: "stable" },
-    theme: { text: { base: color, muted: color } },
-  } as unknown as Context
-  const app = await testRender(() => <SidebarVersion context={input} />, { width: 38, height: 1 })
+  const sessionID = "ses_0123456789abcdefghijklmnop"
+  await using app = await renderFooter(context({ integrations: [] }), sessionID)
+  app.renderer.start()
+  await app.waitForFrame((frame) => frame.includes("2.0.22"))
 
-  try {
-    await app.renderOnce()
-    expect(app.captureCharFrame()).toContain("2.0.22")
-    const row = app.renderer.root.findDescendantById("sidebar.footer.version")
-    expect(row).toBeDefined()
-    const frame = app.captureCharFrame().split("\n")[0] ?? ""
-    expect(frame.trimEnd().endsWith("2.0.22")).toBe(true)
-    expect(row!.x + row!.width).toBe(38)
-  } finally {
-    app.renderer.destroy()
-  }
+  const row = app.renderer.root.findDescendantById("sidebar.footer.version")
+  expect(row).toBeDefined()
+  const frame =
+    app
+      .captureCharFrame()
+      .split("\n")
+      .find((line) => line.includes("2.0.22")) ?? ""
+  expect(frame.trimEnd().endsWith("2.0.22")).toBe(true)
+  expect(row!.x + row!.width).toBe(38)
 })
