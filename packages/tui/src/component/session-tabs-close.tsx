@@ -6,7 +6,7 @@ import { DialogSelect } from "../ui/dialog-select"
 // controller asks before every close it performs.
 export function useCloseSessionTab(tabs: SessionTabsController) {
   const dialog = useDialog()
-  return (sessionID: string) => {
+  return (sessionID: string, closeNow: () => void) => {
     dialog.replace(() => (
       <DialogSelect
         title="Close tab"
@@ -15,7 +15,8 @@ export function useCloseSessionTab(tabs: SessionTabsController) {
         onCancel={dialog.clear}
         onSelect={(option) => {
           dialog.clear()
-          if (option.value === "close") tabs.close(sessionID)
+          // closeNow skips the controller entry point, which would ask again.
+          if (option.value === "close") closeNow()
         }}
         options={[
           { title: "Cancel", value: "cancel" },
