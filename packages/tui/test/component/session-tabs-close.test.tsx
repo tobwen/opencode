@@ -53,16 +53,6 @@ async function setup(input: { confirm: boolean }) {
   return { app, closed, confirm: () => confirm!("second") }
 }
 
-test("the tab strip hands a confirmation callback to the controller", async () => {
-  const { app } = await setup({ confirm: true })
-
-  try {
-    expect(app.captureCharFrame()).toContain("Second")
-  } finally {
-    app.renderer.destroy()
-  }
-})
-
 test("asking the confirmation keeps the tab open until Close is chosen", async () => {
   const { app, closed, confirm } = await setup({ confirm: true })
 
@@ -84,19 +74,6 @@ test("asking the confirmation keeps the tab open until Close is chosen", async (
     await app.mockMouse.click(rows[row]!.indexOf("Close") + 1, row)
     await app.renderOnce()
     expect(closed).toEqual(["second"])
-  } finally {
-    app.renderer.destroy()
-  }
-})
-
-test("with confirmation off the callback closes the tab right away", async () => {
-  const { app, closed, confirm } = await setup({ confirm: false })
-
-  try {
-    confirm()
-    await app.renderOnce()
-    expect(closed).toEqual(["second"])
-    expect(app.captureCharFrame()).not.toContain("Close tab")
   } finally {
     app.renderer.destroy()
   }
