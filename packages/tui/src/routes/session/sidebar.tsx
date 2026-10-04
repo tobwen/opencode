@@ -29,7 +29,7 @@ export function Sidebar(props: { sessionID: string }) {
         paddingRight={2}
         position="relative"
       >
-        <text id="sidebar.session" fg={theme.text.muted} wrapMode="none" truncate>
+        <text fg={theme.text.muted} wrapMode="none" truncate>
           {props.sessionID}
         </text>
         <box flexShrink={0} paddingRight={2} paddingBottom={1}>
