@@ -73,9 +73,19 @@ test.skipIf(process.platform === "win32")("composer header switches tabs and sho
 
   try {
     await setup.waitForFrame((frame) => frame.includes("ctrl+p commands"))
-    setup.mockInput.pressKey("F6")
+    // The picker only exists after the server reports persistent PTY support, which arrives
+    // asynchronously. Pressing again is safe because the command always opens the composer.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      setup.mockInput.pressKey("F6")
+      const opened = await setup
+        .waitForFrame((frame) => frame.includes("+ New terminal"))
+        .then(() => true)
+        .catch(() => false)
+      if (opened) break
+      await setup.renderOnce()
+    }
     // Terminals is the default tab, so every other header has to switch away from it.
-    await setup.waitForFrame((frame) => frame.includes("+ New terminal"))
+    expect(await setup.captureCharFrame()).toContain("+ New terminal")
 
     await hover("Subagents")
     await hover("Shell")
