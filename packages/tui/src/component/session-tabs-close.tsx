@@ -1,4 +1,3 @@
-import { useConfig } from "../config"
 import type { SessionTabsController } from "./session-tabs"
 import { useDialog } from "../ui/dialog"
 import { DialogSelect } from "../ui/dialog-select"
@@ -7,12 +6,7 @@ import { DialogSelect } from "../ui/dialog-select"
 // controller asks before every close it performs.
 export function useCloseSessionTab(tabs: SessionTabsController) {
   const dialog = useDialog()
-  const config = useConfig().data
   return (sessionID: string) => {
-    if (!config.session.confirm_tab_close) {
-      tabs.close(sessionID)
-      return
-    }
     dialog.replace(() => (
       <DialogSelect
         title="Close tab"
