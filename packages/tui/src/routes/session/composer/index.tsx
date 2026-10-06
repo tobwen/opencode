@@ -51,6 +51,7 @@ export function Composer(props: ComposerProps) {
   const tabList = createMemo(() => Object.values(store.tabs))
   const activeTab = createMemo(() => tabList().find((t) => t.id === store.active))
   const footerHints = createMemo(() => activeTab()?.hints?.() ?? [])
+  const paneHint = createMemo(() => activeTab()?.paneHint?.())
 
   // Set active tab when opened
   createEffect(() => {
@@ -155,14 +156,25 @@ export function Composer(props: ComposerProps) {
                   </For>
                 </box>
               </Show>
-              <text
-                fg={escHover() ? theme.text.action.primary.hovered : theme.text.muted}
-                onMouseOver={() => setEscHover(true)}
-                onMouseOut={() => setEscHover(false)}
-                onMouseUp={close}
-              >
-                esc
-              </text>
+              <box flexDirection="row" gap={2}>
+                <Show when={paneHint()}>
+                  {(hint) => (
+                    <ComposerHintText
+                      label={hint().label}
+                      shortcut={hint().shortcut}
+                      onRun={hint().command ? () => keymap.dispatch(hint().command!) : undefined}
+                    />
+                  )}
+                </Show>
+                <text
+                  fg={escHover() ? theme.text.action.primary.hovered : theme.text.muted}
+                  onMouseOver={() => setEscHover(true)}
+                  onMouseOut={() => setEscHover(false)}
+                  onMouseUp={close}
+                >
+                  esc
+                </text>
+              </box>
             </box>
             <SubagentsTab sessionID={props.sessionID} />
             <ShellTab sessionID={props.sessionID} />
