@@ -4,6 +4,13 @@ export const SESSION_TABS_COMPACT_BREAKPOINT = 12
 export const SESSION_SIDEBAR_MAX_WIDTH = 72
 const SESSION_CONTENT_MIN_WIDTH = 44
 const SESSION_CONTENT_PREFERRED_WIDTH = 64
+// The sidebar box pads its content left and right by two columns each.
+const SESSION_SIDEBAR_HORIZONTAL_PADDING = 4
+
+// Collapsing leaves only the version row visible, so the rail is exactly as wide as that text.
+export function collapsedSidebarWidth(version: string) {
+  return version.length + SESSION_SIDEBAR_HORIZONTAL_PADDING
+}
 
 export function sessionTabsFitVertically(total: number, width = SESSION_SIDEBAR_WIDTH) {
   return total >= width + SESSION_CONTENT_PREFERRED_WIDTH

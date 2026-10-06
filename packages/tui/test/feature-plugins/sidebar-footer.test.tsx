@@ -4,22 +4,26 @@ import { RGBA } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import type { Context } from "@opencode/plugin/tui/context"
 import { createStore, produce } from "solid-js/store"
-import { SidebarOnboarding } from "../../src/feature-plugins/sidebar/footer"
+import { SidebarOnboarding, SidebarVersionToggle } from "../../src/feature-plugins/sidebar/footer"
 
 function context(options?: {
+  version?: string
   dismissed?: boolean
   integrations?: Array<{ connections: unknown[] }>
   dispatched?: string[]
   sessionID?: string
 }) {
   const color = RGBA.fromInts(200, 200, 200)
+  // Distinct so a test can tell base from muted.
+  const strong = RGBA.fromInts(10, 10, 10)
   const [onboarding, setOnboarding] = createStore({ dismissed: options?.dismissed ?? false })
   const location = { directory: "/workspace" }
   return {
     location,
+    app: { version: options?.version ?? "2.0.22" },
     theme: {
       background: { raised: { high: color } },
-      text: { base: color, muted: color },
+      text: { base: strong, muted: color },
     },
     storage: {
       store: () => [
@@ -126,3 +130,59 @@ test("sidebar onboarding opens integrations and can be dismissed", async () => {
   }
 })
 
+
+async function renderVersion(context: Context, toggles: string[]) {
+  const app = await testRender(
+    () => (
+      <box width={38}>
+        <SidebarVersionToggle context={context} onToggle={() => toggles.push("toggle")} />
+      </box>
+    ),
+    { width: 38, height: 2 },
+  )
+  await app.renderOnce()
+  return app
+}
+
+test("clicking the version row asks for the width toggle", async () => {
+  const toggles: string[] = []
+  const app = await renderVersion(context(), toggles)
+  try {
+    const lines = (await app.captureCharFrame()).split("\n")
+    const row = lines.findIndex((line) => line.includes("2.0.22"))
+    const column = lines[row]!.indexOf("2.0.22") + 1
+    await app.mockMouse.click(column, row)
+    await app.renderOnce()
+    expect(toggles).toEqual(["toggle"])
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("hovering the version row highlights it and leaving restores it", async () => {
+  const toggles: string[] = []
+  const app = await renderVersion(context(), toggles)
+  try {
+    const lines = (await app.captureCharFrame()).split("\n")
+    const row = lines.findIndex((line) => line.includes("2.0.22"))
+    const column = lines[row]!.indexOf("2.0.22") + 1
+    const before = versionForeground(app.renderer.root)
+    await app.mockMouse.moveTo(column, row)
+    await app.renderOnce()
+    expect(versionForeground(app.renderer.root)).not.toEqual(before)
+    await app.mockMouse.moveTo(0, 1)
+    await app.renderOnce()
+    expect(versionForeground(app.renderer.root)).toEqual(before)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// opentui keeps the resolved foreground on the text node as _defaultFg; the row holds one text child.
+type TextNode = { _defaultFg?: unknown }
+type RowNode = { getChildren(): TextNode[] }
+
+function versionForeground(root: { findDescendantById(id: string): unknown }): unknown {
+  const row = root.findDescendantById("sidebar.footer.version") as RowNode | undefined
+  return row?.getChildren()[0]?._defaultFg
+}

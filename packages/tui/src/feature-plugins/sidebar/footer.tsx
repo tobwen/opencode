@@ -1,5 +1,5 @@
 import { Plugin } from "@opencode/plugin/tui"
-import { createMemo, Show } from "solid-js"
+import { createMemo, createSignal, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { FilePath } from "../../ui/file-path"
 import { useWorkingDirectoryActions } from "../../ui/working-directory-actions"
@@ -74,7 +74,33 @@ export function SidebarOnboarding(props: { context: Plugin.Context; sessionID: s
   )
 }
 
-export function SidebarFooter(props: { context: Plugin.Context; sessionID: string }) {
+
+// The version doubles as the sidebar width toggle, so it highlights on hover to advertise the
+// click. It takes no providers beyond the plugin context, which keeps it testable on its own.
+export function SidebarVersionToggle(props: { context: Plugin.Context; onToggle: () => void }) {
+  const [hovered, setHovered] = createSignal(false)
+  return (
+    <box
+      id="sidebar.footer.version"
+      flexDirection="row"
+      justifyContent="flex-end"
+      onMouseOver={() => setHovered(true)}
+      onMouseOut={() => setHovered(false)}
+      onMouseUp={() => props.onToggle()}
+    >
+      <text fg={hovered() ? props.context.theme.text.base : props.context.theme.text.muted} wrapMode="none">
+        {props.context.app.version}
+      </text>
+    </box>
+  )
+}
+
+export function SidebarFooter(props: {
+  context: Plugin.Context
+  sessionID: string
+  collapsed: boolean
+  onToggleCollapsed: () => void
+}) {
   const session = createMemo(() => props.context.data.session.get(props.sessionID))
   const move = usePromptMove({
     projectID: () => session()?.projectID,
@@ -92,23 +118,26 @@ export function SidebarFooter(props: { context: Plugin.Context; sessionID: strin
   })
   return (
     <box gap={1}>
-      <SidebarOnboarding context={props.context} sessionID={props.sessionID} />
-      <Show when={directory()}>
-        {(value) => (
-          <box
-            id="sidebar.footer.location"
-            onMouseOver={actions.onMouseOver}
-            onMouseOut={actions.onMouseOut}
-            onMouseUp={actions.onMouseUp}
-          >
-            <FilePath
-              value={value()}
-              maxWidth={38}
-              fg={actions.hovered() ? props.context.theme.text.base : props.context.theme.text.muted}
-            />
-          </box>
-        )}
+      <Show when={!props.collapsed}>
+        <SidebarOnboarding context={props.context} sessionID={props.sessionID} />
+        <Show when={directory()}>
+          {(value) => (
+            <box
+              id="sidebar.footer.location"
+              onMouseOver={actions.onMouseOver}
+              onMouseOut={actions.onMouseOut}
+              onMouseUp={actions.onMouseUp}
+            >
+              <FilePath
+                value={value()}
+                maxWidth={38}
+                fg={actions.hovered() ? props.context.theme.text.base : props.context.theme.text.muted}
+              />
+            </box>
+          )}
+        </Show>
       </Show>
+      <SidebarVersionToggle context={props.context} onToggle={props.onToggleCollapsed} />
     </box>
   )
 }
@@ -120,7 +149,14 @@ export default Plugin.define({
     // replace still takes the boundary over.
     context.ui.slot({
       append: "sidebar.footer",
-      render: (props) => <SidebarFooter context={context} sessionID={props.sessionID} />,
+      render: (props) => (
+        <SidebarFooter
+          context={context}
+          sessionID={props.sessionID}
+          collapsed={props.collapsed}
+          onToggleCollapsed={() => props.onToggleCollapsed()}
+        />
+      ),
     })
   },
 })

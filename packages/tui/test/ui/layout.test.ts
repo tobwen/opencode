@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import {
   clampSessionTabsWidth,
+  collapsedSidebarWidth,
   sessionTabsFitVertically,
   SESSION_SIDEBAR_MAX_WIDTH,
   SESSION_SIDEBAR_WIDTH,
@@ -28,4 +29,10 @@ test("vertical tab width preserves minimum rail and content widths", () => {
   expect(clampSessionTabsWidth(42, 54)).toBe(10)
   expect(sessionTabsFitVertically(69, SESSION_TABS_COMPACT_WIDTH)).toBe(true)
   expect(sessionTabsFitVertically(68, SESSION_TABS_COMPACT_WIDTH)).toBe(false)
+})
+
+test("a collapsed sidebar is exactly as wide as the version text plus its padding", () => {
+  expect(collapsedSidebarWidth("2.0.22")).toBe(10)
+  expect(collapsedSidebarWidth("2.0.22-dev-6bffe7932e")).toBe(25)
+  expect(collapsedSidebarWidth("")).toBe(4)
 })
