@@ -30,7 +30,7 @@ const target = {
   output: { head: 0, tail: 0 },
 }
 
-async function renderTab(input: { visibleTerminalID?: string } = {}) {
+async function renderTab(input: { visibleTerminalID?: string; paneTitle?: string } = {}) {
   const calls: string[] = []
   const fetch = async (url: URL, request: Request) => {
     if (request.method === "DELETE" && url.pathname.startsWith("/api/experimental/persistent-pty/")) {
@@ -44,6 +44,19 @@ async function renderTab(input: { visibleTerminalID?: string } = {}) {
   // The tab registers its commands in composer mode, which the real composer pushes when it opens.
   function ComposerMode() {
     onCleanup(Keymap.use().mode.push("composer"))
+    // Stands in for the global layer session-frame registers, which the tab reads the live title from.
+    Keymap.createLayer(() => ({
+      mode: "global",
+      commands: [
+        {
+          id: "terminal.toggle",
+          title: input.paneTitle,
+          group: "Session",
+          bind: "ctrl+x t",
+          run: () => {},
+        },
+      ],
+    }))
     return <box />
   }
 
@@ -113,6 +126,20 @@ test("the terminals tab offers no hints for the new terminal row", async () => {
   try {
     await setup.waitForFrame((frame) => frame.includes("+ New terminal"))
     expect(setup.registered()?.hints?.()).toEqual([])
+  } finally {
+    setup.renderer.destroy()
+  }
+})
+
+test("the pane hint follows the live terminal.toggle title", async () => {
+  const setup = await renderTab({ visibleTerminalID: targetID, paneTitle: "Hide terminal pane" })
+  try {
+    await setup.waitForFrame((frame) => frame.includes("vim"))
+    expect(setup.registered()?.paneHint?.()).toEqual({
+      label: "Hide terminal pane",
+      shortcut: "ctrl+x t",
+      command: "terminal.toggle",
+    })
   } finally {
     setup.renderer.destroy()
   }

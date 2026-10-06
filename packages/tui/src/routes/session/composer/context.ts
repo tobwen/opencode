@@ -11,6 +11,8 @@ export interface ComposerTab {
   id: string
   label: string
   hints?: () => ComposerHint[]
+  /** Rendered at the right of the header, opposite the close hint. */
+  paneHint?: () => ComposerHint | undefined
 }
 
 export const ComposerContext = createContext<{

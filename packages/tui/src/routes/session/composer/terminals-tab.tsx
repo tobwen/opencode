@@ -14,6 +14,7 @@ export function TerminalsTab(props: { sessionID: string; visibleTerminalID?: str
   const theme = useTheme()
   const toast = useToast()
   const shortcuts = Keymap.useShortcuts()
+  const allCommands = Keymap.useCommands()
   const failure = () => toast.show({ variant: "error", message: "Unable to load terminal" })
   const [selected, setSelected] = createSignal<number>()
   const session = () => terminals.get(props.sessionID)
@@ -27,6 +28,12 @@ export function TerminalsTab(props: { sessionID: string; visibleTerminalID?: str
     const cleanup = composer.register({
       id: "terminals",
       label: "Terminals",
+      paneHint: () => {
+        // The command title flips between hide and show, so read it live instead of hard-coding a label.
+        const title = allCommands().find((command) => command.id === "terminal.toggle")?.title
+        if (!title) return undefined
+        return { label: title, shortcut: shortcuts.get("terminal.toggle") ?? "", command: "terminal.toggle" }
+      },
       // The trailing entry creates a terminal, so it has nothing to kill.
       hints: () =>
         selectedTerminal()
