@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { TextAttributes } from "@opentui/core"
 import { Keymap } from "../../../context/keymap"
 import { useSessionTerminals } from "../../../context/session-terminals"
+import { useClient } from "../../../context/client"
 import { useTheme } from "../../../context/theme"
 import { useToast } from "../../../ui/toast"
 import { useComposerTab } from "./context"
@@ -9,15 +10,40 @@ import { useComposerTab } from "./context"
 export function TerminalsTab(props: { sessionID: string; visibleTerminalID?: string }) {
   const composer = useComposerTab()
   const terminals = useSessionTerminals()
+  const client = useClient()
   const theme = useTheme()
   const toast = useToast()
+  const shortcuts = Keymap.useShortcuts()
   const failure = () => toast.show({ variant: "error", message: "Unable to load terminal" })
   const [selected, setSelected] = createSignal<number>()
   const session = () => terminals.get(props.sessionID)
   const entries = () => session()?.terminals ?? []
+  const selectedTerminal = () => {
+    const index = selected()
+    return index === undefined ? undefined : entries()[index]
+  }
 
   onMount(() => {
-    const cleanup = composer.register({ id: "terminals", label: "Terminals" })
+    const cleanup = composer.register({
+      id: "terminals",
+      label: "Terminals",
+      // The trailing entry creates a terminal, so it has nothing to kill.
+      hints: () =>
+        selectedTerminal()
+          ? [
+              {
+                label: "select",
+                shortcut: shortcuts.get("composer.terminal.select") ?? "",
+                command: "composer.terminal.select",
+              },
+              {
+                label: "kill",
+                shortcut: shortcuts.get("composer.terminal.kill") ?? "",
+                command: "composer.terminal.kill",
+              },
+            ]
+          : [],
+    })
     onCleanup(cleanup)
   })
 
@@ -61,6 +87,17 @@ export function TerminalsTab(props: { sessionID: string; visibleTerminalID?: str
         title: "Select terminal",
         group: "Composer",
         run: select,
+      },
+      {
+        id: "composer.terminal.kill",
+        title: "Kill terminal",
+        group: "Composer",
+        run() {
+          const terminal = selectedTerminal()
+          if (!terminal) return
+          // Removing publishes persistent-pty.removed, which refreshes the list and drops the selection.
+          client.api.experimental.persistentPty.remove({ ptyID: terminal.id }).catch(failure)
+        },
       },
     ],
   }))
