@@ -29,10 +29,17 @@ export function TerminalsTab(props: { sessionID: string; visibleTerminalID?: str
       id: "terminals",
       label: "Terminals",
       paneHint: () => {
+        const id = selectedTerminal()?.id
+        // Nothing to toggle without a visible terminal, and the row the user picked is the one that closes.
+        if (!id) return undefined
         // The command title flips between hide and show, so read it live instead of hard-coding a label.
         const title = allCommands().find((command) => command.id === "terminal.toggle")?.title
         if (!title) return undefined
-        return { label: title, shortcut: shortcuts.get("terminal.toggle") ?? "", command: "terminal.toggle" }
+        return {
+          label: title.toLowerCase(),
+          shortcut: shortcuts.get("terminal.toggle") ?? "",
+          command: "terminal.toggle",
+        }
       },
       // The trailing entry creates a terminal, so it has nothing to kill.
       hints: () =>

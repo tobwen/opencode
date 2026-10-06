@@ -156,43 +156,43 @@ export function Composer(props: ComposerProps) {
                   </For>
                 </box>
               </Show>
-              <box flexDirection="row" gap={2}>
-                <Show when={paneHint()}>
-                  {(hint) => (
-                    <ComposerHintText
-                      label={hint().label}
-                      shortcut={hint().shortcut}
-                      onRun={hint().command ? () => keymap.dispatch(hint().command!) : undefined}
-                    />
-                  )}
-                </Show>
-                <text
-                  fg={escHover() ? theme.text.action.primary.hovered : theme.text.muted}
-                  onMouseOver={() => setEscHover(true)}
-                  onMouseOut={() => setEscHover(false)}
-                  onMouseUp={close}
-                >
-                  esc
-                </text>
-              </box>
+              <text
+                fg={escHover() ? theme.text.action.primary.hovered : theme.text.muted}
+                onMouseOver={() => setEscHover(true)}
+                onMouseOut={() => setEscHover(false)}
+                onMouseUp={close}
+              >
+                esc
+              </text>
             </box>
             <SubagentsTab sessionID={props.sessionID} />
             <ShellTab sessionID={props.sessionID} />
             <Show when={props.terminals}>
               <TerminalsTab sessionID={props.sessionID} visibleTerminalID={props.visibleTerminalID} />
             </Show>
-            <box flexDirection="row" gap={2} paddingLeft={1} flexShrink={0}>
-              <For each={footerHints()}>
+            <box flexDirection="row" gap={2} justifyContent="space-between" paddingLeft={1} flexShrink={0}>
+              <box flexDirection="row" gap={2}>
+                <For each={footerHints()}>
+                  {(hint) => (
+                    <ComposerHintText
+                      label={hint.label}
+                      shortcut={hint.shortcut}
+                      onRun={hint.command ? () => keymap.dispatch(hint.command!) : undefined}
+                    />
+                  )}
+                </For>
+                <Show when={tabList().length > 1}>
+                  <ComposerHintText label="tabs" shortcut="←/→" onRun={() => switchTab(-1)} />
+                </Show>
+              </box>
+              <Show when={paneHint()}>
                 {(hint) => (
                   <ComposerHintText
-                    label={hint.label}
-                    shortcut={hint.shortcut}
-                    onRun={hint.command ? () => keymap.dispatch(hint.command!) : undefined}
+                    label={hint().label}
+                    shortcut={hint().shortcut}
+                    onRun={hint().command ? () => keymap.dispatch(hint().command!) : undefined}
                   />
                 )}
-              </For>
-              <Show when={tabList().length > 1}>
-                <ComposerHintText label="tabs" shortcut="←/→" onRun={() => switchTab(-1)} />
               </Show>
             </box>
           </box>
