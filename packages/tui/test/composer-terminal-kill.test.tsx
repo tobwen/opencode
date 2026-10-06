@@ -136,10 +136,20 @@ test("the pane hint follows the live terminal.toggle title", async () => {
   try {
     await setup.waitForFrame((frame) => frame.includes("vim"))
     expect(setup.registered()?.paneHint?.()).toEqual({
-      label: "Hide terminal pane",
+      label: "hide terminal pane",
       shortcut: "ctrl+x t",
       command: "terminal.toggle",
     })
+  } finally {
+    setup.renderer.destroy()
+  }
+})
+
+test("the pane hint is hidden without a selected terminal", async () => {
+  const setup = await renderTab({ paneTitle: "Hide terminal pane" })
+  try {
+    await setup.waitForFrame((frame) => frame.includes("+ New terminal"))
+    expect(setup.registered()?.paneHint?.()).toBeUndefined()
   } finally {
     setup.renderer.destroy()
   }
