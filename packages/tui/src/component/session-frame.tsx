@@ -45,9 +45,11 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   const paneResize = createPaneResize({
     value: () => layout.paneWidth ?? layout.terminalWidth ?? defaultPaneWidth(),
     defaultValue: defaultPaneWidth,
-    clamp: (width) => clampSessionPaneWidth(width, panels.width()),
-    fromMouse: (event) => dimensions().width - event.x - 1,
-    contains: (event, width) => event.x >= dimensions().width - width - 1 && event.x <= dimensions().width - width,
+    clamp: (width) => clampSessionPaneWidth(width, panels.width() - paneRightInset()),
+    fromMouse: (event) => dimensions().width - paneRightInset() - event.x - 1,
+    contains: (event, width) =>
+      event.x >= dimensions().width - paneRightInset() - width - 1 &&
+      event.x <= dimensions().width - paneRightInset() - width,
     onCommit: (width) => {
       void updateLayout((draft) => {
         draft.paneWidth = width
@@ -74,6 +76,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   let sessionScroll: ScrollBoxRenderable | undefined
   let sessionNode: BoxRenderable | undefined
   let rightNode: BoxRenderable | undefined
+  let sidebarNode: BoxRenderable | undefined
   let panelNode: BoxRenderable | undefined
   createResource(
     () => (sessions.available() ? props.sessionID : undefined),
@@ -98,7 +101,6 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
         return
       }
       if (terminal && terminal !== previous?.[1]) {
-        setSidebarOpen(false)
         if (panel) panels.close()
       }
     }),
@@ -111,21 +113,21 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   })
   const rightPane = createMemo(() => {
     if (activePanel()) return "panel"
-    if (sidebarOpen() && sidebarVisible()) return "sidebar"
     if (selectedTerminal()) return "terminal"
-    if (sidebarVisible()) return "sidebar"
   })
+  // The sidebar owns the far right on its own, so terminals and panels only share the middle.
+  // A fullscreen panel covers it, and narrow terminals fall back to the overlay below.
+  const sidebarPaneVisible = createMemo(() => !fullscreen() && wide() && sidebarVisible())
+  const paneRightInset = () => (sidebarPaneVisible() ? SESSION_SIDEBAR_WIDTH : 0)
   const toggleSidebar = () => {
     batch(() => {
-      const visible = rightPane() === "sidebar"
+      const visible = sidebarVisible()
       void config
         .update((draft) => {
           draft.session = { ...draft.session, sidebar: visible ? "hide" : "auto" }
         })
         .catch(toast.error)
       setSidebarOpen(!visible)
-      if (!visible && activePanel()) panels.close()
-      if (!visible && selectedTerminal()) void sessions.selectTerminal(props.sessionID, null).catch(toast.error)
     })
   }
   const focusSession = () => {
@@ -145,7 +147,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   }
   const onFocused = () => {
     const current = renderer.currentFocusedRenderable
-    if (rightPane() !== "sidebar" && within(current, rightNode)) setActivePane("right")
+    if (within(current, rightNode) || within(current, sidebarNode)) setActivePane("right")
     if (!fullscreen() && within(current, sessionNode)) setActivePane("session")
   }
   renderer.on(CliRenderEvents.FOCUSED_RENDERABLE, onFocused)
@@ -185,7 +187,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
     commands: [
       {
         id: "session.sidebar.toggle",
-        title: rightPane() === "sidebar" ? "Hide sidebar" : "Show sidebar",
+        title: sidebarVisible() ? "Hide sidebar" : "Show sidebar",
         group: "Session",
         palette: true,
         run: () => {
@@ -289,7 +291,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
             scrollRef={(value) => (sessionScroll = value)}
             verticalTabsWidth={props.verticalTabsWidth}
             promptMuted={activePane() !== "session"}
-            sidebarVisible={rightPane() === "sidebar"}
+            sidebarVisible={sidebarVisible()}
             onToggleSidebar={toggleSidebar}
             terminals={sessions.available()}
             visibleTerminalID={rightPane() === "terminal" ? selectedTerminal()?.id : undefined}
@@ -322,67 +324,73 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
           />
         </Show>
       </box>
-      <Show when={rightPane() === "terminal" || rightPane() === "panel" || (rightPane() === "sidebar" && wide())}>
+      <Show when={rightPane() === "terminal" || rightPane() === "panel"}>
         <box
           ref={(value: BoxRenderable) => (rightNode = value)}
           flexShrink={0}
-          width={
-            fullscreen() ? availableWidth() : rightPane() === "sidebar" ? SESSION_SIDEBAR_WIDTH : paneResize.size()
-          }
+          width={fullscreen() ? availableWidth() : paneResize.size()}
           minWidth={0}
           minHeight={0}
         >
           <Show
-            when={rightPane() === "sidebar"}
+            keyed
+            when={activePanel()}
             fallback={
-              <Show
-                keyed
-                when={activePanel()}
-                fallback={
-                  <Show keyed when={selectedTerminal()?.id}>
-                    {(ptyID) => (
-                      <TerminalPane
-                        ptyID={ptyID}
-                        resizing={paneResize.resizing()}
-                        autoFocus={restoreTerminalFocus() || sessions.shouldFocus(ptyID)}
-                        onAutoFocus={() => {
-                          sessions.clearFocus(ptyID)
-                          setRestoreTerminalFocus(false)
-                        }}
-                        onFocusRequest={(value) => (focusTerminal = value)}
-                        onDisconnect={() => setRestoreTerminalFocus(true)}
-                      />
-                    )}
-                  </Show>
-                }
-              >
-                {(item) => (
-                  <PanelHost
-                    panel={item}
-                    width={fullscreen() ? availableWidth() : paneResize.size()}
-                    focused={activePane() === "right"}
-                    onFocus={focusRightPane}
-                    onTarget={(node) => {
-                      panelNode = node
-                      if (node) {
-                        focusRightPane()
-                        return
-                      }
-                      setActivePane("session")
+              <Show keyed when={selectedTerminal()?.id}>
+                {(ptyID) => (
+                  <TerminalPane
+                    ptyID={ptyID}
+                    resizing={paneResize.resizing()}
+                    autoFocus={restoreTerminalFocus() || sessions.shouldFocus(ptyID)}
+                    onAutoFocus={() => {
+                      sessions.clearFocus(ptyID)
+                      setRestoreTerminalFocus(false)
                     }}
+                    onFocusRequest={(value) => (focusTerminal = value)}
+                    onDisconnect={() => setRestoreTerminalFocus(true)}
                   />
                 )}
               </Show>
             }
           >
-            <Sidebar sessionID={props.sessionID} />
+            {(item) => (
+              <PanelHost
+                panel={item}
+                width={fullscreen() ? availableWidth() : paneResize.size()}
+                focused={activePane() === "right"}
+                onFocus={focusRightPane}
+                onTarget={(node) => {
+                  panelNode = node
+                  if (node) {
+                    focusRightPane()
+                    return
+                  }
+                  setActivePane("session")
+                }}
+              />
+            )}
           </Show>
         </box>
       </Show>
-      <Show when={!fullscreen() && (rightPane() === "terminal" || rightPane() === "panel") && availableWidth() >= 3}>
-        <PaneResizeHandle resize={paneResize} left={availableWidth() - paneResize.size() - 1} highlight="right" />
+      <Show when={sidebarPaneVisible()}>
+        <box
+          ref={(value: BoxRenderable) => (sidebarNode = value)}
+          flexShrink={0}
+          width={SESSION_SIDEBAR_WIDTH}
+          minWidth={0}
+          minHeight={0}
+        >
+          <Sidebar sessionID={props.sessionID} />
+        </box>
       </Show>
-      <Show when={rightPane() === "sidebar" && !wide()}>
+      <Show when={!fullscreen() && (rightPane() === "terminal" || rightPane() === "panel") && availableWidth() >= 3}>
+        <PaneResizeHandle
+          resize={paneResize}
+          left={availableWidth() - paneRightInset() - paneResize.size() - 1}
+          highlight="right"
+        />
+      </Show>
+      <Show when={sidebarVisible() && !wide()}>
         <box
           position="absolute"
           top={0}
