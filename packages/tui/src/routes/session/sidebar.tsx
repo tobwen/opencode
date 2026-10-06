@@ -31,6 +31,8 @@ export function Sidebar(props: { sessionID: string; collapsed: boolean; onToggle
         paddingLeft={2}
         paddingRight={2}
         position="relative"
+        // The footer keeps the bottom row when the collapsed sidebar drops the filling scrollbox.
+        justifyContent="flex-end"
       >
         <Show when={!props.collapsed}>
           <text fg={theme.text.muted} wrapMode="none" truncate>

@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test"
 import { BoxRenderable, EmbeddedTerminalRenderable, type Renderable } from "@opentui/core"
 import { createTestRenderer } from "@opentui/core/testing"
+
+// Matches the fixture height, so the tests can assert the footer owns the last content row.
+const HEIGHT = 36
 import { Effect, FileSystem } from "effect"
 import { Global } from "@opencode/util/global"
 import { SESSION_SIDEBAR_WIDTH } from "../src/ui/layout"
@@ -171,6 +174,37 @@ test.skipIf(process.platform === "win32")("a hidden sidebar leaves the terminal 
 
     expect(sidebarPanes()).toBe(0)
     expect(terminals()).toBe(1)
+  } finally {
+    setup.renderer.destroy()
+    await task
+    await server.stop()
+  }
+})
+
+test.skipIf(process.platform === "win32")("the collapsed sidebar keeps the version row on the bottom row", async () => {
+  const width = 200
+  const { setup, task, server, findAll } = await setupTerminalSession(width)
+  const versionRow = () =>
+    findAll(setup.renderer.root, (node) => node instanceof BoxRenderable && node.id === "sidebar.footer.version")[0]
+  try {
+    await setup.waitForFrame((frame) => frame.includes("Hello"))
+    const expanded = versionRow()
+    if (!expanded) throw new Error("Version row not rendered")
+
+    await setup.mockMouse.click(expanded.x + 1, expanded.y)
+    await setup.waitForVisualIdle()
+
+    const collapsed = versionRow()
+    if (!collapsed) throw new Error("Version row not rendered after collapsing")
+    // Guard: the click must actually have collapsed the sidebar, otherwise the position proves nothing.
+    const wideSidebars = findAll(
+      setup.renderer.root,
+      (node) => node instanceof BoxRenderable && node.width === SESSION_SIDEBAR_WIDTH,
+    ).length
+    expect(wideSidebars).toBe(0)
+    // The sidebar reserves one padding row at the bottom, so the version row owns row HEIGHT - 2.
+    expect(collapsed.y + collapsed.height).toBe(HEIGHT - 1)
+    expect(collapsed.y).toBe(expanded.y)
   } finally {
     setup.renderer.destroy()
     await task
