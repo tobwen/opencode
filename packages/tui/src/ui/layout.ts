@@ -8,6 +8,14 @@ const SESSION_CONTENT_PREFERRED_WIDTH = 64
 // Narrower, panels take over the screen.
 export const SESSION_PANEL_SPLIT_MIN_WIDTH = SESSION_CONTENT_PREFERRED_WIDTH + SESSION_CONTENT_MIN_WIDTH
 
+// The sidebar box pads its content left and right by two columns each.
+const SESSION_SIDEBAR_HORIZONTAL_PADDING = 4
+
+// Collapsing leaves only the version row visible, so the rail is exactly as wide as that text.
+export function collapsedSidebarWidth(version: string) {
+  return version.length + SESSION_SIDEBAR_HORIZONTAL_PADDING
+}
+
 export function sessionTabsFitVertically(total: number, width = SESSION_SIDEBAR_WIDTH) {
   return total >= width + SESSION_CONTENT_PREFERRED_WIDTH
 }
