@@ -109,11 +109,6 @@ export function SidebarFooter(props: { context: Plugin.Context; sessionID: strin
           </box>
         )}
       </Show>
-      <box id="sidebar.footer.version" flexDirection="row" justifyContent="flex-end">
-        <text fg={props.context.theme.text.muted} wrapMode="none">
-          {props.context.app.version}
-        </text>
-      </box>
     </box>
   )
 }
