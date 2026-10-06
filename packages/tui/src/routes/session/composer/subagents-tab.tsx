@@ -121,11 +121,18 @@ export function SubagentsTab(props: { sessionID: string }) {
         const entry = selectedEntry()
         return [
           ...(entry?.status === "running"
-            ? [{ label: "interrupt", shortcut: shortcuts.get("composer.subagent.interrupt") ?? "" }]
+            ? [
+                {
+                  label: "interrupt",
+                  shortcut: shortcuts.get("composer.subagent.interrupt") ?? "",
+                  command: "composer.subagent.interrupt",
+                },
+              ]
             : []),
           {
             label: `show ${filter.active ? "inactive" : "active"}`,
             shortcut: shortcuts.get("composer.subagent.toggle-activity") ?? "",
+            command: "composer.subagent.toggle-activity",
           },
         ]
       },

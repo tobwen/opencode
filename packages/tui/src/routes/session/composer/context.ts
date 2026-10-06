@@ -3,6 +3,8 @@ import { createContext, useContext } from "solid-js"
 export interface ComposerHint {
   label: string
   shortcut: string
+  /** Set when the hint maps to a keymap command, so the footer can run it on click. */
+  command?: string
 }
 
 export interface ComposerTab {
