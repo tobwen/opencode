@@ -10,7 +10,12 @@ type SessionTerminalsState = {
   sessions: Record<string, string | null>
 }
 
-export const { use: useSessionTerminals, provider: SessionTerminalsProvider } = createSimpleContext({
+export const {
+  // Exported so tests can inject a list without standing up the storage and event providers.
+  context: SessionTerminalsContext,
+  use: useSessionTerminals,
+  provider: SessionTerminalsProvider,
+} = createSimpleContext({
   name: "SessionTerminals",
   init: () => {
     const client = useClient()
