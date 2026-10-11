@@ -49,13 +49,13 @@ export function mentionTriggerIndex(value: string, offset = promptOffsetWidth(va
   }
 }
 
+// Commands open from the prompt start only. The token-boundary scan once fed the
+// mid-text skill list; skills moved to the "@" trigger, so a "/" past the first
+// token now only raised an empty command list over a path the user was typing.
 export function slashTriggerIndex(value: string, offset = promptOffsetWidth(value)) {
   const text = displaySlice(value, 0, offset)
-  for (let index = text.lastIndexOf("/"); index >= 0; index = text.lastIndexOf("/", index - 1)) {
-    const before = index === 0 ? undefined : text[index - 1]
-    const query = text.slice(index)
-    if (before !== undefined && !/\s/.test(before)) continue
-    if (/\s/.test(query) || query.slice(1).includes("/")) return
-    return promptOffsetWidth(text.slice(0, index))
-  }
+  if (!text.startsWith("/")) return
+  if (/\s/.test(text)) return
+  if (text.slice(1).includes("/")) return
+  return 0
 }
