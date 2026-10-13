@@ -40,7 +40,7 @@ test("leaves untagged text and trims like the markdown input did", () => {
 test("the rendered transcript turns a tagged bullet list back into one block", async () => {
   const tagged = "\u00a712\u00a7 - one\n- two"
   const blocks = async (content: string) => {
-    const output = await createTestRenderer({ width: 40, height: 10, remote: true, useThread: false })
+    const output = await createTestRenderer({ width: 40, height: 10, remote: true })
     await render(
       () => (
         <markdown
