@@ -9,7 +9,7 @@ import { tmpdir } from "./fixture/fixture"
 
 async function setupTerminalSession(width: number, sidebar: "auto" | "hide" = "auto") {
   await using state = await tmpdir()
-  const setup = await createTestRenderer({ width, height: 36, useThread: false, kittyKeyboard: true })
+  const setup = await createTestRenderer({ width, height: 36, kittyKeyboard: true })
   setup.renderer.start()
   const session = {
     id: "ses_split",
