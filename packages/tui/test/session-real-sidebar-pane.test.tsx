@@ -10,6 +10,8 @@ import { tmpdir } from "./fixture/fixture"
 async function setupTerminalSession(width: number, sidebar: "auto" | "hide" = "auto") {
   await using state = await tmpdir()
   const setup = await createTestRenderer({ width, height: 36, kittyKeyboard: true })
+  // OpenTUI 0.6.2 rejects terminal control before the session leaves its initial phase.
+  await setup.renderer.setupTerminal()
   setup.renderer.start()
   const session = {
     id: "ses_split",
