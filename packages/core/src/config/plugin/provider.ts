@@ -193,6 +193,16 @@ export const Plugin = define({
               ]
             })
         }
+        // V1 whitelist/blacklist: an allow-list and a deny-list of model IDs per provider.
+        // A model is hidden when it is blacklisted, or when a whitelist exists and omits it.
+        if (item.whitelist || item.blacklist) {
+          for (const model of models.list(providerID)) {
+            if (item.blacklist?.includes(model.id) || (item.whitelist && !item.whitelist.includes(model.id)))
+              models.update(providerID, model.id, (draft) => {
+                draft.enabled = false
+              })
+          }
+        }
       }
     })
   }),
