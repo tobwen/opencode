@@ -68,6 +68,16 @@ describe("ConfigNormalize", () => {
     expect(Schema.decodeUnknownSync(Info)(result.encoded).policies).toEqual(policies)
   })
 
+  test("keeps provider whitelist and blacklist without unsupported warnings", () => {
+    const native = normalized({ providers: { custom: { whitelist: ["a"], blacklist: ["b"] } } })
+    expect(native.diagnostics).toEqual([])
+    expect(native.encoded.providers).toMatchObject({ custom: { whitelist: ["a"], blacklist: ["b"] } })
+
+    const legacy = normalized({ provider: { custom: { whitelist: ["a"], blacklist: ["b"] } } })
+    expect(legacy.diagnostics).toEqual([])
+    expect(legacy.encoded.providers).toMatchObject({ custom: { whitelist: ["a"], blacklist: ["b"] } })
+  })
+
   test("drops unsupported policy actions without losing supported policies", () => {
     const supported = { action: "tool.use", effect: "deny", resource: "shell:*" } as const
     const result = normalized({
@@ -570,7 +580,6 @@ describe("ConfigNormalize", () => {
       ["logLevel"],
       ["agent", "reviewer", "name"],
       ["provider", "custom", "id"],
-      ["provider", "custom", "whitelist"],
       ["provider", "custom", "models", "model", "release_date"],
       ["provider", "custom", "models", "model", "status"],
       ["provider", "custom", "models", "model", "interleaved"],

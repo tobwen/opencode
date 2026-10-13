@@ -1090,4 +1090,38 @@ describe("ConfigProviderPlugin.Plugin", () => {
       }),
     ),
   )
+
+  it.effect("hides models excluded by a provider whitelist or blacklist", () =>
+    Effect.gen(function* () {
+      const providers = yield* Provider.Service
+      const models = yield* Model.Service
+      const providerID = Provider.ID.make("custom")
+      const keep = Model.ID.make("keep")
+      const denied = Model.ID.make("denied")
+      const unlisted = Model.ID.make("unlisted")
+      yield* providers.transform((editor) => {
+        for (const id of [keep, denied, unlisted])
+          editor.models.update(providerID, id, (model) => {
+            model.enabled = true
+          })
+      })
+      yield* addPlugin([
+        new Document({
+          type: "document",
+          info: decode({
+            providers: {
+              custom: {
+                whitelist: ["keep", "denied"],
+                blacklist: ["denied"],
+                models: {},
+              },
+            },
+          }),
+        }),
+      ])
+      expect((yield* models.get(providerID, keep))?.enabled).toBe(true)
+      expect((yield* models.get(providerID, denied))?.enabled).toBe(false)
+      expect((yield* models.get(providerID, unlisted))?.enabled).toBe(false)
+    }),
+  )
 })
