@@ -136,6 +136,13 @@ export const Info = Schema.Struct({
       }),
     }),
   ).annotate({ description: "Terminal integration settings" }),
+  dialog: Schema.optional(
+    Schema.Struct({
+      confirm_default: Schema.optional(Schema.Literals(["cancel", "confirm"])).annotate({
+        description: "Which button a confirmation dialog focuses by default",
+      }),
+    }),
+  ).annotate({ description: "Confirmation dialog settings" }),
   prompt: Schema.optional(
     Schema.Struct({
       editor: Schema.optional(Schema.Boolean).annotate({
@@ -256,13 +263,19 @@ export const Info = Schema.Struct({
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
-export type Resolved = Omit<Info, "attention" | "cursor" | "keybinds" | "leader" | "mouse" | "session" | "tabs"> & {
+export type Resolved = Omit<
+  Info,
+  "attention" | "cursor" | "dialog" | "keybinds" | "leader" | "mouse" | "session" | "tabs"
+> & {
   attention: {
     notifications: boolean
     sound: boolean
     volume: number
     sound_pack: string
     sounds: AttentionSoundPaths
+  }
+  dialog: {
+    confirm_default: "cancel" | "confirm"
   }
   keybinds: TuiKeybind.BindingLookupView
   leader: { timeout: number }
@@ -314,6 +327,9 @@ export function resolve(
       bindingDefaults: TuiKeybind.bindingDefaults(),
     }),
     leader: { timeout: input.leader?.timeout ?? 2000 },
+    dialog: {
+      confirm_default: input.dialog?.confirm_default ?? "cancel",
+    },
     mouse: input.mouse ?? true,
     cursor: input.cursor
       ? {
