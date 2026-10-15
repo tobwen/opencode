@@ -66,11 +66,20 @@ test("asking the confirmation keeps the tab open until Close is chosen", async (
   const { app, closed, performed, ask } = await setup({ confirm: true })
 
   try {
+    // DialogConfirm renders both buttons on one row, so the row identifies them.
+    const buttons = () => {
+      const rows = app.captureCharFrame().split("\n")
+      const row = rows.findIndex((line) => line.includes("Cancel") && line.includes("Close"))
+      if (row < 0) throw new Error("dialog buttons not rendered")
+      return { rows, row }
+    }
+
     ask()
     await app.waitForFrame((frame) => frame.includes("Close tab"))
     expect(closed).toEqual([])
 
-    app.mockInput.pressEnter()
+    const cancel = buttons()
+    await app.mockMouse.click(cancel.rows[cancel.row]!.indexOf("Cancel"), cancel.row)
     await app.renderOnce()
     expect(closed).toEqual([])
     expect(performed).toEqual([])
@@ -78,10 +87,8 @@ test("asking the confirmation keeps the tab open until Close is chosen", async (
 
     ask()
     await app.waitForFrame((frame) => frame.includes("Close tab"))
-    const rows = (await app.captureCharFrame()).split("\n")
-    const row = rows.findIndex((line) => line.trim() === "Close")
-    if (row < 0) throw new Error("Close option not rendered")
-    await app.mockMouse.click(rows[row]!.indexOf("Close") + 1, row)
+    const confirm = buttons()
+    await app.mockMouse.click(confirm.rows[confirm.row]!.indexOf("Close"), confirm.row)
     await app.renderOnce()
     // The confirmed close must run the callback the controller handed over. Calling the
     // controller again would ask a second time and leave the tab open.
