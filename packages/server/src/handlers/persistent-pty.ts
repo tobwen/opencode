@@ -28,6 +28,12 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
         }),
       )
       .handle(
+        "persistentPty.write",
+        Effect.fn(function* (ctx) {
+          return { data: yield* pty.writeCurrent(ctx.params.sessionID, ctx.payload.data).pipe(mapUnavailable) }
+        }),
+      )
+      .handle(
         "persistentPty.list",
         Effect.fn(function* (ctx) {
           return { data: yield* pty.list(ctx.params.sessionID).pipe(mapUnavailable) }

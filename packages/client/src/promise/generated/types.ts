@@ -5708,6 +5708,13 @@ export type ExperimentalPersistentPtyReadInput = {
 
 export type ExperimentalPersistentPtyReadOutput = { data: PersistentPtyReadResult | null }["data"]
 
+export type ExperimentalPersistentPtyWriteInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly data: { readonly data: string }["data"]
+}
+
+export type ExperimentalPersistentPtyWriteOutput = { data: PtyID | null }["data"]
+
 export type ExperimentalPersistentPtyListInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
 
 export type ExperimentalPersistentPtyListOutput = { data: Array<PersistentPtyInfo> }["data"]

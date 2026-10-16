@@ -98,6 +98,10 @@ export interface Interface {
   ) => Effect.Effect<void, NotFoundError | UnavailableError>
   readonly snapshot: (id: Pty.ID) => Effect.Effect<Snapshot, NotFoundError | UnavailableError>
   readonly read: (sessionID: Session.ID, lines?: number) => Effect.Effect<ReadResult | null, UnavailableError>
+  readonly writeCurrent: (
+    sessionID: Session.ID,
+    data: string,
+  ) => Effect.Effect<Pty.ID | null, UnavailableError>
   readonly remove: (id: Pty.ID) => Effect.Effect<void, NotFoundError | UnavailableError>
   readonly shutdown: () => Effect.Effect<void, UnavailableError>
   readonly handoff: () => Effect.Effect<Handoff | null, UnavailableError>
@@ -175,6 +179,7 @@ const makeLayer = (options: Options = {}) =>
         )
         if (response.type !== "created") return yield* unexpected(response)
         const terminal = toInfo(response.terminal)
+        current.set(sessionID, terminal.id)
         yield* bus.publish(Added, { sessionID, terminal })
         return terminal
       })
@@ -290,6 +295,23 @@ const makeLayer = (options: Options = {}) =>
         }
       })
 
+      const writeCurrent = Effect.fn("PersistentPty.writeCurrent")(function* (sessionID: Session.ID, data: string) {
+        const id = current.get(sessionID)
+        if (!id) return null
+        const terminal = yield* get(id).pipe(Effect.catchTag("PersistentPty.NotFoundError", () => Effect.succeed(null)))
+        if (!terminal || terminal.sessionID !== sessionID) {
+          if (current.get(sessionID) === id) current.delete(sessionID)
+          return null
+        }
+        yield* write(id, data).pipe(
+          Effect.catchTag("PersistentPty.NotFoundError", () => {
+            if (current.get(sessionID) === id) current.delete(sessionID)
+            return Effect.succeed(null)
+          }),
+        )
+        return id
+      })
+
       const remove = Effect.fn("PersistentPty.remove")(function* (id: Pty.ID) {
         const terminal = yield* get(id)
         const response = yield* request(daemon, { op: "terminate", id: fromID(id) })
@@ -358,6 +380,7 @@ const makeLayer = (options: Options = {}) =>
         input,
         snapshot,
         read,
+        writeCurrent,
         remove,
         shutdown,
         handoff,

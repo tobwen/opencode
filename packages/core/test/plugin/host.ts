@@ -71,6 +71,8 @@ export function host(overrides: Overrides = {}): Plugin.Context {
     experimental: overrides.experimental ?? {
       terminal: {
         read: () => Effect.die("unused experimental.terminal.read"),
+        write: () => Effect.die("unused experimental.terminal.write"),
+        create: () => Effect.die("unused experimental.terminal.create"),
       },
     },
     generate: overrides.generate ?? {

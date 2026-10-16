@@ -269,6 +269,15 @@ export const make = Effect.fn("PluginHost.make")(function* (
     experimental: {
       terminal: {
         read: (input) => persistentPty.read(input.sessionID, input.lines),
+        write: (input) => persistentPty.writeCurrent(input.sessionID, input.data),
+        create: (input) =>
+          persistentPty.create(input.sessionID, {
+            command: input.command,
+            args: [...input.args],
+            cwd: input.cwd,
+            title: input.title,
+            env: input.env,
+          }),
       },
     },
     generate: {

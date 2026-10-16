@@ -33,7 +33,7 @@ export interface Context {
   readonly credential: Pick<CredentialApi, "activate">
   readonly event: EventDomain
   readonly experimental: {
-    readonly terminal: Pick<OpenCodeClient["experimental"]["persistentPty"], "read">
+    readonly terminal: Pick<OpenCodeClient["experimental"]["persistentPty"], "read" | "write" | "create">
   }
   readonly integration: IntegrationDomain
   readonly mcp: MCPDomain
