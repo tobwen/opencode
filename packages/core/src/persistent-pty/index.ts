@@ -142,6 +142,9 @@ const makeLayer = (options: Options = {}) =>
       const removing = new Set<Pty.ID>()
       // Controller activity selects a terminal; observer reads and pane visibility do not.
       const current = new Map<Session.ID, Pty.ID>()
+      // The daemon accepts terminal input only from the active controller attachment;
+      // remember it so writes without an attachment of their own still reach the terminal.
+      const controllers = new Map<Pty.ID, string>()
 
       const list = Effect.fn("PersistentPty.list")(function* (sessionID?: Session.ID) {
         const response = yield* optionalRequest(daemon, { op: "list" })
@@ -303,9 +306,10 @@ const makeLayer = (options: Options = {}) =>
           if (current.get(sessionID) === id) current.delete(sessionID)
           return null
         }
-        yield* write(id, data).pipe(
+        yield* write(id, data, controllers.get(id)).pipe(
           Effect.catchTag("PersistentPty.NotFoundError", () => {
             if (current.get(sessionID) === id) current.delete(sessionID)
+            controllers.delete(id)
             return Effect.succeed(null)
           }),
         )
@@ -317,6 +321,7 @@ const makeLayer = (options: Options = {}) =>
         const response = yield* request(daemon, { op: "terminate", id: fromID(id) })
         if (response.type !== "ok") return yield* unexpected(response)
         if (current.get(terminal.sessionID) === id) current.delete(terminal.sessionID)
+        controllers.delete(id)
         yield* bus.publish(Removed, { sessionID: terminal.sessionID, ptyID: id })
         return undefined
       })
@@ -324,6 +329,7 @@ const makeLayer = (options: Options = {}) =>
       const shutdown = Effect.fn("PersistentPty.shutdown")(function* () {
         const response = yield* daemon.shutdown.pipe(Effect.mapError(unavailable))
         current.clear()
+        controllers.clear()
         if (!response) return
         if (response.type !== "ok") return yield* unexpected(response)
       })
@@ -354,19 +360,30 @@ const makeLayer = (options: Options = {}) =>
           .subscribe(fromID(id), {
             ...input,
             onEvent: (event) => {
+              if (event.type === "controller_changed") {
+                if (event.attachmentID !== undefined) controllers.set(id, event.attachmentID)
+                else controllers.delete(id)
+              }
               if (event.type === "exited") removeVisibleExit(id)
               input.onEvent(event)
             },
           })
           .pipe(Effect.mapError(unavailable))
-        if (attachment.role === "controller") current.set(attachment.terminal.group_id, id)
+        if (attachment.role === "controller") {
+          current.set(attachment.terminal.group_id, id)
+          controllers.set(id, input.attachmentID)
+        }
+        const detached = attachment.detach
         return {
           info: toInfo(attachment.terminal),
           role: attachment.role,
           generation: attachment.generation,
           replay: attachment.replay,
           activate: attachment.activate,
-          detach: attachment.detach,
+          detach: () => {
+            if (controllers.get(id) === input.attachmentID) controllers.delete(id)
+            detached()
+          },
         }
       })
 
