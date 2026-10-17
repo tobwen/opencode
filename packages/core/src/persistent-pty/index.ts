@@ -3,7 +3,7 @@ export * as PersistentPty from "./index.js"
 import path from "node:path"
 import { Context, Effect, Layer, Schema } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
-import { Added, Handoff, PersistentPty, ReadLines, Removed, type ReadResult } from "@opencode/schema/persistent-pty"
+import { Added, Handoff, PersistentPty, ReadLines, Removed, Selected, type ReadResult } from "@opencode/schema/persistent-pty"
 import { Session } from "@opencode/schema/session"
 import { Bus } from "../bus.js"
 import { Pty } from "@opencode/schema/pty"
@@ -306,13 +306,16 @@ const makeLayer = (options: Options = {}) =>
           if (current.get(sessionID) === id) current.delete(sessionID)
           return null
         }
-        yield* write(id, data, controllers.get(id)).pipe(
+        const written = yield* write(id, data, controllers.get(id)).pipe(
+          Effect.as(true),
           Effect.catchTag("PersistentPty.NotFoundError", () => {
             if (current.get(sessionID) === id) current.delete(sessionID)
             controllers.delete(id)
-            return Effect.succeed(null)
+            return Effect.succeed(false)
           }),
         )
+        // Clients show the terminal this input went to, so a hidden current terminal becomes visible.
+        if (written) yield* bus.publish(Selected, { sessionID, ptyID: id })
         return id
       })
 

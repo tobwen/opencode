@@ -1750,6 +1750,15 @@ export type PersistentPtyRemoved = {
   data: { sessionID: SessionID; ptyID: PtyID }
 }
 
+export type PersistentPtySelected = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "persistent-pty.selected"
+  location?: LocationRef
+  data: { sessionID: SessionID; ptyID: PtyID }
+}
+
 export type ShellCreated = {
   id: EventID
   created: number
@@ -2656,6 +2665,7 @@ export type V2Event =
   | PtyDeleted
   | PersistentPtyAdded
   | PersistentPtyRemoved
+  | PersistentPtySelected
   | ShellCreated
   | ShellExited
   | ShellDeleted

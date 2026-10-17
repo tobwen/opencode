@@ -68,6 +68,16 @@ export const {
         }),
       )
     }
+    // The server reports the terminal that receives input, so the pane shows it even when closed.
+    onCleanup(
+      event.on("persistent-pty.selected", (evt) => {
+        if (!available()) return
+        const { sessionID, ptyID } = evt.data
+        void refresh(sessionID)
+          .then(() => selectTerminal(sessionID, ptyID, { focus: false }))
+          .catch((error) => console.error("Failed to show the persistent terminal of the session", error))
+      }),
+    )
     // The event stream opens with server.connected, so this runs for the first connection and every reconnect.
     onCleanup(
       event.on("server.connected", () => {
