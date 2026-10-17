@@ -141,10 +141,9 @@ const makeLayer = (options: Options = {}) =>
         options.handoff,
       ).pipe(Effect.mapError(unavailable))
       const removing = new Set<Pty.ID>()
-      // Controller activity selects a terminal; observer reads and pane visibility do not.
+      // The session's current terminal, moved by create and controller activity; reads never move it.
       const current = new Map<Session.ID, Pty.ID>()
-      // The daemon accepts terminal input only from the active controller attachment;
-      // remember it so writes without an attachment of their own still reach the terminal.
+      // The daemon accepts input only from the active controller attachment, so remember it per terminal.
       const controllers = new Map<Pty.ID, string>()
 
       const list = Effect.fn("PersistentPty.list")(function* (sessionID?: Session.ID) {
@@ -271,9 +270,8 @@ const makeLayer = (options: Options = {}) =>
         }
       })
 
-      const read = Effect.fn("PersistentPty.read")(function* (sessionID: Session.ID, lines?: number) {
-        if (lines !== undefined && !Schema.is(ReadLines)(lines))
-          return yield* new UnavailableError({ message: "lines must be an integer between 1 and 65535" })
+      // Resolves the session's current terminal, dropping a stale pointer.
+      const currentTerminal = Effect.fn("PersistentPty.currentTerminal")(function* (sessionID: Session.ID) {
         const id = current.get(sessionID)
         if (!id) return null
         const terminal = yield* get(id).pipe(Effect.catchTag("PersistentPty.NotFoundError", () => Effect.succeed(null)))
@@ -281,8 +279,16 @@ const makeLayer = (options: Options = {}) =>
           if (current.get(sessionID) === id) current.delete(sessionID)
           return null
         }
+        return terminal
+      })
+
+      const read = Effect.fn("PersistentPty.read")(function* (sessionID: Session.ID, lines?: number) {
+        if (lines !== undefined && !Schema.is(ReadLines)(lines))
+          return yield* new UnavailableError({ message: "lines must be an integer between 1 and 65535" })
+        const terminal = yield* currentTerminal(sessionID)
+        if (!terminal) return null
         // Let the daemon choose the live height in the same snapshot when lines is omitted.
-        const response = yield* request(daemon, { op: "read_rows", id: fromID(id), rows: lines })
+        const response = yield* request(daemon, { op: "read_rows", id: fromID(terminal.id), rows: lines })
         if (response.type !== "rows") return yield* unexpected(response)
         const info = toInfo(response.terminal)
         return {
@@ -304,13 +310,9 @@ const makeLayer = (options: Options = {}) =>
         data: string,
         options?: { readonly visible?: boolean },
       ) {
-        const id = current.get(sessionID)
-        if (!id) return null
-        const terminal = yield* get(id).pipe(Effect.catchTag("PersistentPty.NotFoundError", () => Effect.succeed(null)))
-        if (!terminal || terminal.sessionID !== sessionID) {
-          if (current.get(sessionID) === id) current.delete(sessionID)
-          return null
-        }
+        const terminal = yield* currentTerminal(sessionID)
+        if (!terminal) return null
+        const id = terminal.id
         const written = yield* write(id, data, controllers.get(id)).pipe(
           Effect.as(true),
           Effect.catchTag("PersistentPty.NotFoundError", () => {
@@ -319,8 +321,7 @@ const makeLayer = (options: Options = {}) =>
             return Effect.succeed(false)
           }),
         )
-        // Clients show the terminal this input went to, so a hidden current terminal becomes visible.
-        // Callers that pass visible: false want the write kept out of sight, so nothing is published.
+        // Publish the reveal unless the caller asked to keep this write out of sight.
         if (written && options?.visible !== false) yield* bus.publish(Selected, { sessionID, ptyID: id })
         return id
       })

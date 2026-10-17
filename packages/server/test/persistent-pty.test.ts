@@ -505,7 +505,7 @@ smoke(
         data: "concealed\n",
         visible: false,
       })
-      expect(yield* Effect.promise(() => events.quiet("persistent-pty.selected", 250))).toBeUndefined()
+      expect(yield* Effect.promise(() => events.next("persistent-pty.selected", 250))).toBeUndefined()
       const snapshot = yield* request(base, "GET", `/api/experimental/persistent-pty/${terminal.id}/snapshot`)
       expect(isRecord(snapshot.data) && snapshot.data.text).toContain("concealed")
       yield* request(base, "DELETE", `/api/experimental/persistent-pty/${terminal.id}`)
@@ -583,7 +583,9 @@ async function openEventStream(base: string) {
   const decoder = new TextDecoder()
   let pending = ""
   return {
-    async next(type: string) {
+    // With a timeout, returns undefined once the window passes, so a missing event can be asserted.
+    async next(type: string, timeout?: number) {
+      const deadline = timeout === undefined ? undefined : Date.now() + timeout
       while (true) {
         const boundary = pending.indexOf("\n\n")
         if (boundary !== -1) {
@@ -598,37 +600,14 @@ async function openEventStream(base: string) {
           if (isRecord(event) && event.type === type) return event
           continue
         }
-        const chunk = await reader.read()
+        const chunk =
+          deadline === undefined
+            ? await reader.read()
+            : await Promise.race([reader.read(), Bun.sleep(Math.max(1, deadline - Date.now())).then(() => undefined)])
+        if (chunk === undefined) return undefined
         if (chunk.done) throw new Error(`Persistent PTY event stream closed before ${type}`)
         pending += decoder.decode(chunk.value, { stream: true })
       }
-    },
-    // Waits for the window to pass so a missing event can be asserted, not just observed.
-    async quiet(type: string, ms: number) {
-      const deadline = Date.now() + ms
-      while (Date.now() < deadline) {
-        const boundary = pending.indexOf("\n\n")
-        if (boundary !== -1) {
-          const frame = pending.slice(0, boundary)
-          pending = pending.slice(boundary + 2)
-          const data = frame
-            .split("\n")
-            .find((line) => line.startsWith("data: "))
-            ?.slice(6)
-          if (!data) continue
-          const event: unknown = JSON.parse(data)
-          if (isRecord(event) && event.type === type) return event
-          continue
-        }
-        const chunk = await Promise.race([
-          reader.read(),
-          Bun.sleep(Math.max(1, deadline - Date.now())).then(() => undefined),
-        ])
-        if (!chunk) return undefined
-        if (chunk.done) throw new Error(`Persistent PTY event stream closed while ${type} stayed quiet`)
-        pending += decoder.decode(chunk.value, { stream: true })
-      }
-      return undefined
     },
     close: () => reader.cancel(),
   }
