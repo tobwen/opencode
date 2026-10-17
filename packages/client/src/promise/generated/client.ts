@@ -1901,7 +1901,7 @@ export function make(options: ClientOptions) {
             {
               method: "POST",
               path: `/api/experimental/session/${encodeURIComponent(input.sessionID)}/terminal/input`,
-              body: { data: input["data"] },
+              body: { data: input["data"], visible: input["visible"] },
               successStatus: 200,
               declaredStatuses: [400, 401, 503],
               empty: false,

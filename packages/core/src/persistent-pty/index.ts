@@ -101,6 +101,7 @@ export interface Interface {
   readonly writeCurrent: (
     sessionID: Session.ID,
     data: string,
+    options?: { readonly visible?: boolean },
   ) => Effect.Effect<Pty.ID | null, UnavailableError>
   readonly remove: (id: Pty.ID) => Effect.Effect<void, NotFoundError | UnavailableError>
   readonly shutdown: () => Effect.Effect<void, UnavailableError>
@@ -298,7 +299,11 @@ const makeLayer = (options: Options = {}) =>
         }
       })
 
-      const writeCurrent = Effect.fn("PersistentPty.writeCurrent")(function* (sessionID: Session.ID, data: string) {
+      const writeCurrent = Effect.fn("PersistentPty.writeCurrent")(function* (
+        sessionID: Session.ID,
+        data: string,
+        options?: { readonly visible?: boolean },
+      ) {
         const id = current.get(sessionID)
         if (!id) return null
         const terminal = yield* get(id).pipe(Effect.catchTag("PersistentPty.NotFoundError", () => Effect.succeed(null)))
@@ -315,7 +320,8 @@ const makeLayer = (options: Options = {}) =>
           }),
         )
         // Clients show the terminal this input went to, so a hidden current terminal becomes visible.
-        if (written) yield* bus.publish(Selected, { sessionID, ptyID: id })
+        // Callers that pass visible: false want the write kept out of sight, so nothing is published.
+        if (written && options?.visible !== false) yield* bus.publish(Selected, { sessionID, ptyID: id })
         return id
       })
 

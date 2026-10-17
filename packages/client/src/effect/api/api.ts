@@ -1964,7 +1964,11 @@ export type ExperimentalPersistentPtyReadOperation<E = never> = (
   input: ExperimentalPersistentPtyReadInput,
 ) => Effect.Effect<ExperimentalPersistentPtyReadOutput, E>
 
-export type ExperimentalPersistentPtyWriteInput = { readonly sessionID: Session.ID; readonly data: string }
+export type ExperimentalPersistentPtyWriteInput = {
+  readonly sessionID: Session.ID
+  readonly data: string
+  readonly visible?: boolean | undefined
+}
 export type ExperimentalPersistentPtyWriteOutput = Pty.ID | null
 export type ExperimentalPersistentPtyWriteOperation<E = never> = (
   input: ExperimentalPersistentPtyWriteInput,

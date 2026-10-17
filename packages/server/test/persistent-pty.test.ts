@@ -468,6 +468,52 @@ smoke(
   30_000,
 )
 
+smoke(
+  "writes without revealing the terminal when the caller asks for visible false",
+  () =>
+    Effect.gen(function* () {
+      const fixture = yield* testDirectory()
+      const server = yield* ServerProcess.start<never, never>({
+        hostname: "127.0.0.1",
+        port: 0,
+        password: "secret",
+        app: { version: "test-version" },
+        database: { path: fixture.database },
+        pty: { root: fixture.directory },
+        fs: { filewatcher: false },
+      })
+      const base = HttpServer.formatAddress(server.address)
+      const sessionID = Session.ID.make("ses_persistent_pty_visible")
+      const events = yield* Effect.promise(() => openEventStream(base))
+      const terminal = Schema.decodeUnknownSync(PersistentPty.Info)(
+        (yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal`, {
+          command: "/bin/sh",
+          args: ["-c", "stty -echo; exec cat"],
+          cwd: process.cwd(),
+          title: "hidden",
+          env: {},
+        })).data,
+      )
+      expect(yield* Effect.promise(() => events.next("persistent-pty.added"))).toMatchObject({
+        data: { sessionID, terminal: { id: terminal.id } },
+      })
+      yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal/input`, { data: "revealed\n" })
+      expect(yield* Effect.promise(() => events.next("persistent-pty.selected"))).toMatchObject({
+        data: { sessionID, ptyID: terminal.id },
+      })
+      yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal/input`, {
+        data: "concealed\n",
+        visible: false,
+      })
+      expect(yield* Effect.promise(() => events.quiet("persistent-pty.selected", 250))).toBeUndefined()
+      const snapshot = yield* request(base, "GET", `/api/experimental/persistent-pty/${terminal.id}/snapshot`)
+      expect(isRecord(snapshot.data) && snapshot.data.text).toContain("concealed")
+      yield* request(base, "DELETE", `/api/experimental/persistent-pty/${terminal.id}`)
+      yield* Effect.promise(() => events.close())
+    }),
+  20_000,
+)
+
 function testDirectory() {
   return Effect.acquireRelease(
     Effect.promise(async () => {
@@ -556,6 +602,33 @@ async function openEventStream(base: string) {
         if (chunk.done) throw new Error(`Persistent PTY event stream closed before ${type}`)
         pending += decoder.decode(chunk.value, { stream: true })
       }
+    },
+    // Waits for the window to pass so a missing event can be asserted, not just observed.
+    async quiet(type: string, ms: number) {
+      const deadline = Date.now() + ms
+      while (Date.now() < deadline) {
+        const boundary = pending.indexOf("\n\n")
+        if (boundary !== -1) {
+          const frame = pending.slice(0, boundary)
+          pending = pending.slice(boundary + 2)
+          const data = frame
+            .split("\n")
+            .find((line) => line.startsWith("data: "))
+            ?.slice(6)
+          if (!data) continue
+          const event: unknown = JSON.parse(data)
+          if (isRecord(event) && event.type === type) return event
+          continue
+        }
+        const chunk = await Promise.race([
+          reader.read(),
+          Bun.sleep(Math.max(1, deadline - Date.now())).then(() => undefined),
+        ])
+        if (!chunk) return undefined
+        if (chunk.done) throw new Error(`Persistent PTY event stream closed while ${type} stayed quiet`)
+        pending += decoder.decode(chunk.value, { stream: true })
+      }
+      return undefined
     },
     close: () => reader.cancel(),
   }

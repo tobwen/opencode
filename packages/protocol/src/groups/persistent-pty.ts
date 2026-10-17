@@ -40,14 +40,14 @@ export const PersistentPtyGroup = HttpApiGroup.make("server.experimental")
   .add(
     HttpApiEndpoint.post("persistentPty.write", "/api/experimental/session/:sessionID/terminal/input", {
       params: { sessionID: Session.ID },
-      payload: Schema.Struct({ data: Schema.String }),
+      payload: Schema.Struct({ data: Schema.String, visible: Schema.optional(Schema.Boolean) }),
       success: Schema.Struct({ data: Schema.NullOr(Pty.ID) }),
       error: [ServiceUnavailableError],
     }).annotateMerge(
       OpenApi.annotations({
         summary: "Write to the session's most recently controlled terminal",
         description:
-          "Send raw input to the session's current terminal without changing selection or taking control. Returns the written terminal ID, or null when no current terminal exists. Experimental: may change without compatibility guarantees.",
+          "Send raw input to the session's current terminal without changing selection or taking control. Returns the written terminal ID, or null when no current terminal exists. Pass visible false to write without revealing the terminal to clients. Experimental: may change without compatibility guarantees.",
       }),
     ),
   )

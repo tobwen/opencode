@@ -1396,7 +1396,10 @@ const EndpointExperimentalPersistentPtyRead =
 const EndpointExperimentalPersistentPtyWrite =
   (raw: RawClient["server.experimental"]) => (input: ExperimentalPersistentPtyWriteInput) =>
     preserveEffect<ExperimentalPersistentPtyWriteOutput>()(
-      raw["persistentPty.write"]({ params: { sessionID: input["sessionID"] }, payload: { data: input["data"] } }).pipe(
+      raw["persistentPty.write"]({
+        params: { sessionID: input["sessionID"] },
+        payload: { data: input["data"], visible: input["visible"] },
+      }).pipe(
         Effect.mapError(mapClientError),
         Effect.map((value) => value.data),
       ),

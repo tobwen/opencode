@@ -5720,7 +5720,8 @@ export type ExperimentalPersistentPtyReadOutput = { data: PersistentPtyReadResul
 
 export type ExperimentalPersistentPtyWriteInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
-  readonly data: { readonly data: string }["data"]
+  readonly data: { readonly data: string; readonly visible?: boolean | undefined }["data"]
+  readonly visible?: { readonly data: string; readonly visible?: boolean | undefined }["visible"]
 }
 
 export type ExperimentalPersistentPtyWriteOutput = { data: PtyID | null }["data"]

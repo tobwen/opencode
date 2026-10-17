@@ -10823,6 +10823,108 @@
         "summary": "Read the session's most recently controlled terminal"
       }
     },
+    "/api/experimental/session/{sessionID}/terminal/input": {
+      "post": {
+        "tags": ["persistentPty"],
+        "operationId": "server.experimental.persistentPty.write",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/Session.ID"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Pty.ID"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Send raw input to the session's current terminal without changing selection or taking control. Returns the written terminal ID, or null when no current terminal exists. Pass visible false to write without revealing the terminal to clients. Experimental: may change without compatibility guarantees.",
+        "summary": "Write to the session's most recently controlled terminal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "string"
+                  },
+                  "visible": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["data"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/experimental/session/{sessionID}/terminal": {
       "get": {
         "tags": ["persistentPty"],
