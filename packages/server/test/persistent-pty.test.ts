@@ -67,7 +67,10 @@ smoke(
         }),
       )
       expect(yield* waitForText(base, first.id, "20")).toContain("1\n2\n")
-      expect(yield* Effect.promise(() => client.experimental.persistentPty.read({ sessionID }))).toBeNull()
+      // Creating a terminal selects it, so the newest terminal is current until a controller attaches.
+      expect(yield* Effect.promise(() => client.experimental.persistentPty.read({ sessionID }))).toMatchObject({
+        ptyID: second.id,
+      })
       const controller = yield* Effect.acquireRelease(
         Effect.promise(() => openTerminalSocket(base, first.id, "read-first")),
         (connection) => Effect.sync(() => connection.socket.close()),
