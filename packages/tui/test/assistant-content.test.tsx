@@ -44,7 +44,7 @@ test("the rendered transcript turns a tagged bullet list back into one block", a
     await render(
       () => (
         <markdown
-          syntaxStyle={SyntaxStyle.fromStyles({ default: { fg: "#ffffff" } })}
+          syntaxStyle={SyntaxStyle.fromStyles({ default: { fg: "#ffffff" } }, output.renderer.nativeScene)}
           content={content}
           streaming={false}
           internalBlockMode="top-level"
