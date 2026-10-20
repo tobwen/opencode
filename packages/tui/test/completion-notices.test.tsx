@@ -195,3 +195,67 @@ test.each([40, 120])("subagent completion notices navigate to the child session 
     await server.stop()
   }
 })
+
+test("plain synthetic notices render markdown", async () => {
+  await using state = await tmpdir()
+  const setup = await createTestRenderer({ width: 80, height: 30, kittyKeyboard: true })
+  await setup.renderer.setupTerminal()
+  setup.renderer.start()
+  const session = {
+    id: "ses_markdown",
+    title: "Markdown notice",
+    projectID: "project",
+    location: { directory },
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    time: { created: 0, updated: 0 },
+  }
+  const messages = [
+    { id: "user-0", type: "user", text: "Show the update", time: { created: 0 } },
+    {
+      id: "notice-0",
+      type: "synthetic",
+      text: "Update summary",
+      description: "Here is the update.\n\n| model | price |\n| --- | --- |\n| alpha | 1.20 |\n| beta | 0.90 |",
+      time: { created: 1 },
+    },
+  ]
+  const calls = createFetch((url) => {
+    if (url.pathname === "/api/session") return json({ data: [session], cursor: {} })
+    if (url.pathname === `/api/session/${session.id}`) return json({ data: session })
+    if (url.pathname === `/api/session/${session.id}/message`) return json({ data: messages.toReversed(), cursor: {} })
+    if (url.pathname === `/api/session/${session.id}/inbox`) return json({ data: [] })
+    if (url.pathname === `/api/session/${session.id}/permission`) return json({ data: [] })
+    return undefined
+  }, createEventStream())
+  const server = Bun.serve({ port: 0, idleTimeout: 0, fetch: (request) => calls.fetch(request) })
+  const { run } = await import("../src/app")
+  const task = Effect.runPromise(
+    run({
+      app: { name: "test", version: "test", channel: "test" },
+      server: { endpoint: { url: server.url.toString() } },
+      config: {
+        get: async () => ({ animations: false, tabs: { mode: "off" } }),
+        update: async () => ({}),
+      },
+      packages: { prepare: async () => ({ directory: "" }) },
+      args: { sessionID: session.id },
+      terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: () => {} }),
+      log: () => {},
+    }).pipe(Effect.provide(Global.layerWith({ state: state.path })), Effect.provide(FileSystem.layerNoop({}))),
+  )
+  try {
+    await setup.waitForFrame((frame) => frame.includes("beta"))
+    await setup.waitForVisualIdle()
+    const frame = setup.captureCharFrame()
+    // Markdown source is parsed: the table is drawn as a grid, not shown as pipes.
+    // Text color comes from the theme, which this harness does not resolve.
+    expect(frame).toContain("alpha")
+    expect(frame).toContain("beta")
+    expect(frame).toMatch(/[┌│└]/)
+  } finally {
+    setup.renderer.destroy()
+    await task
+    await server.stop()
+  }
+})

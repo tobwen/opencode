@@ -2098,6 +2098,8 @@ function SessionSwitchMessageV2(props: { message: SessionMessageInfo }) {
 function SessionNoticeMessageV2(props: { message: SessionMessageInfo }) {
   const ctx = use()
   const theme = useTheme()
+  const { currentSyntax: syntax } = useThemes()
+  const plugins = usePlugin()
   const renderer = useRenderer()
   const { navigate } = useRoute()
   const [hover, setHover] = createSignal(false)
@@ -2130,9 +2132,24 @@ function SessionNoticeMessageV2(props: { message: SessionMessageInfo }) {
     <Show
       when={completion()}
       fallback={
-        <InlineToolRow icon="◈" color={theme.text.muted} pending="Notice" complete={true}>
-          {text()}
-        </InlineToolRow>
+        <box paddingLeft={3} flexDirection="column">
+          <text fg={theme.text.muted}>◈</text>
+          <Show when={text().trim()}>
+            <box paddingTop={1}>
+              <markdown
+                syntaxStyle={syntax()}
+                renderNode={plugins.markdown()}
+                streaming={false}
+                internalBlockMode="top-level"
+                content={text().trim()}
+                tableOptions={{ style: "grid", cellPaddingX: 1 }}
+                conceal={ctx.markdownMode() === "rendered"}
+                fg={theme.markdown.text}
+                bg={theme.background.base}
+              />
+            </box>
+          </Show>
+        </box>
       }
     >
       <box
