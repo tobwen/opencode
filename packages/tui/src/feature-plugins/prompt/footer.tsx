@@ -122,13 +122,15 @@ export function PromptFooter(props: {
             >
               {shortcut("command.palette.show")}{" "}
               <span
-                style={{
-                  fg: commandsHovered()
-                    ? props.context.theme.text.action.primary.hovered
-                    : interactive()
-                      ? props.context.theme.text.muted
-                      : {},
-                }}
+                style={
+                  interactive()
+                    ? {
+                        fg: commandsHovered()
+                          ? props.context.theme.text.action.primary.hovered
+                          : props.context.theme.text.muted,
+                      }
+                    : undefined
+                }
               >
                 commands
               </span>
