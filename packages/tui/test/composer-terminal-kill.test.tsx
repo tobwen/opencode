@@ -73,10 +73,13 @@ async function renderTab(input: { visibleTerminalID?: string; paneTitle?: string
                   <SessionTerminalsContext.Provider
                     value={{
                       available: () => true,
+                      checked: async () => {},
                       get: () => ({ terminals: [target], selectedTerminalID: input.visibleTerminalID ?? null }),
                       refresh: async () => {},
                       selectTerminal: async () => {},
                       newTerminal: async () => target,
+                      write: () => {},
+                      attachWriter: () => () => {},
                       shouldFocus: () => false,
                       clearFocus: () => {},
                     }}
