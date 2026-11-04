@@ -69,7 +69,9 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
     const enabled = () => config.tabs.enabled
     const [focused, setFocused] = createSignal<boolean>()
     // The dialog provider sits below this one, so the tab strip hands in a confirmation callback.
-    const [closeConfirmer, setConfirmer] = createSignal<((sessionID: string, closeNow: () => void) => void) | undefined>()
+    const [closeConfirmer, setConfirmer] = createSignal<
+      ((sessionID: string, closeNow: () => void) => void) | undefined
+    >()
     // Keyed reconcile keeps tab object identity across reorders, so strip rows move instead of
     // mutating in place, which per-row animations and drag state depend on.
     const [store, updateStore] = storage.store<PersistedState>("tabs", {

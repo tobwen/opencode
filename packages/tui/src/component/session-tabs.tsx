@@ -530,7 +530,7 @@ export function SessionTabs(
 ) {
   const config = useConfig().data
   const controller = props.controller ?? useSessionTabs()
-  const confirmClose = useCloseSessionTab(controller)
+  const confirmClose = useCloseSessionTab()
   createEffect(() => controller.setCloseConfirmer?.(confirmClose))
   onCleanup(() => controller.setCloseConfirmer?.(undefined))
 

@@ -294,10 +294,16 @@ test.each([SESSION_SIDEBAR_WIDTH, 18])(
         <TestTuiContexts>
           <ConfigProvider config={createTuiResolvedConfig({ tabs: { mode: "on", layout: "vertical" } })}>
             <ThemeProvider mode="dark" source={emptyThemeSource}>
-              <box width="100%" height="100%" flexDirection="row">
-                <SessionTabs controller={controller} orientation="vertical" animations width={railWidth} />
-                <text>transcript</text>
-              </box>
+              <Keymap.Provider>
+                <ToastProvider>
+                  <DialogProvider>
+                    <box width="100%" height="100%" flexDirection="row">
+                      <SessionTabs controller={controller} orientation="vertical" animations width={railWidth} />
+                      <text>transcript</text>
+                    </box>
+                  </DialogProvider>
+                </ToastProvider>
+              </Keymap.Provider>
             </ThemeProvider>
           </ConfigProvider>
         </TestTuiContexts>

@@ -19,6 +19,7 @@ const targetID = "pty_target"
 const target = {
   id: targetID,
   title: "Terminal",
+  userTitle: null,
   command: "bash",
   args: [],
   cwd: "/tmp/opencode",
