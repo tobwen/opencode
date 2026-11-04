@@ -20,7 +20,7 @@ function render(state: string) {
   return createAppFixture({
     state,
     args: { sessionID: session.id },
-    config: { animations: false, tabs: { mode: "on" } },
+    config: { animations: false, tabs: { mode: "on" }, session: { confirm_tab_close: false } },
     fetch: (url) => {
       if (url.pathname === "/api/fs/list") return json({ location, data: [] })
       if (url.pathname === "/api/location") return json(location)
