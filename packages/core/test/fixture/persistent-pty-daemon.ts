@@ -111,12 +111,19 @@ export const fakeDaemon = Effect.fn(function* (features?: string[]) {
   const socket = path.join(base, "daemon.sock")
   const terminals: Array<ReturnType<typeof terminal> & { user_title?: string | null }> = []
   const failTerminate = new Set<string>()
+  const disappearAfterList = new Set<string>()
   const ops: string[] = []
   let nextID = 1
   yield* listen(socket, (connection, request) => {
     ops.push(String(request.op))
     if (request.op === "ping") return features ? { ...pong, features } : pong
-    if (request.op === "list") return { type: "terminals", terminals }
+    if (request.op === "list") {
+      const listed = [...terminals]
+      for (let i = terminals.length - 1; i >= 0; i--) {
+        if (disappearAfterList.delete(`pty_persistent_${terminals[i]!.id}`)) terminals.splice(i, 1)
+      }
+      return { type: "terminals", terminals: listed }
+    }
     if (request.op === "create") {
       const base = terminal(nextID++, String(request.group_id))
       // A daemon that advertises features always serializes user_title.
@@ -152,6 +159,7 @@ export const fakeDaemon = Effect.fn(function* (features?: string[]) {
   })
   return {
     failTerminate,
+    disappearAfterList,
     ops,
     options: {
       root,

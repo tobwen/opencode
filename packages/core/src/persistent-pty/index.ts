@@ -10,6 +10,7 @@ import {
   PersistentPty,
   ReadLines,
   Removed,
+  Selected,
   Updated,
   type ReadResult,
 } from "@opencode/schema/persistent-pty"
@@ -116,6 +117,11 @@ export interface Interface {
   ) => Effect.Effect<Info, NotFoundError | UnsupportedError | UnavailableError>
   readonly snapshot: (id: Pty.ID) => Effect.Effect<Snapshot, NotFoundError | UnavailableError>
   readonly read: (sessionID: Session.ID, lines?: number) => Effect.Effect<ReadResult | null, UnavailableError>
+  readonly writeCurrent: (
+    sessionID: Session.ID,
+    data: string,
+    options?: { readonly visible?: boolean },
+  ) => Effect.Effect<Pty.ID | null, UnavailableError>
   readonly remove: (id: Pty.ID) => Effect.Effect<void, NotFoundError | UnavailableError>
   readonly shutdown: () => Effect.Effect<void, UnavailableError>
   readonly handoff: () => Effect.Effect<Handoff | null, UnavailableError>
@@ -147,8 +153,10 @@ const makeLayer = (options: Options = {}) =>
         options.handoff,
       ).pipe(Effect.mapError(unavailable))
       const removing = new Set<Pty.ID>()
-      // Controller activity selects a terminal; observer reads and pane visibility do not.
+      // The session's current terminal, moved by create and controller activity; reads never move it.
       const current = new Map<Session.ID, Pty.ID>()
+      // The daemon accepts input only from the active controller attachment, so remember it per terminal.
+      const controllers = new Map<Pty.ID, string>()
 
       const list = Effect.fn("PersistentPty.list")(function* (sessionID?: Session.ID) {
         const response = yield* optionalRequest(daemon, { op: "list" })
@@ -195,6 +203,7 @@ const makeLayer = (options: Options = {}) =>
         )
         if (response.type !== "created") return yield* unexpected(response)
         const terminal = toInfo(response.terminal)
+        current.set(sessionID, terminal.id)
         yield* bus.publish(Added, { sessionID, terminal })
         return terminal
       })
@@ -260,9 +269,8 @@ const makeLayer = (options: Options = {}) =>
         }
       })
 
-      const read = Effect.fn("PersistentPty.read")(function* (sessionID: Session.ID, lines?: number) {
-        if (lines !== undefined && !Schema.is(ReadLines)(lines))
-          return yield* new UnavailableError({ message: "lines must be an integer between 1 and 65535" })
+      // Resolves the session's current terminal, dropping a stale pointer.
+      const currentTerminal = Effect.fn("PersistentPty.currentTerminal")(function* (sessionID: Session.ID) {
         const id = current.get(sessionID)
         if (!id) return null
         const terminal = yield* get(id).pipe(Effect.catchTag("PersistentPty.NotFoundError", () => Effect.succeed(null)))
@@ -270,8 +278,16 @@ const makeLayer = (options: Options = {}) =>
           if (current.get(sessionID) === id) current.delete(sessionID)
           return null
         }
+        return terminal
+      })
+
+      const read = Effect.fn("PersistentPty.read")(function* (sessionID: Session.ID, lines?: number) {
+        if (lines !== undefined && !Schema.is(ReadLines)(lines))
+          return yield* new UnavailableError({ message: "lines must be an integer between 1 and 65535" })
+        const terminal = yield* currentTerminal(sessionID)
+        if (!terminal) return null
         // Let the daemon choose the live height in the same snapshot when lines is omitted.
-        const response = yield* request(daemon, { op: "read_rows", id: fromID(id), rows: lines })
+        const response = yield* request(daemon, { op: "read_rows", id: fromID(terminal.id), rows: lines })
         if (response.type !== "rows") return yield* unexpected(response)
         const info = toInfo(response.terminal)
         return {
@@ -288,11 +304,33 @@ const makeLayer = (options: Options = {}) =>
         }
       })
 
+      const writeCurrent = Effect.fn("PersistentPty.writeCurrent")(function* (
+        sessionID: Session.ID,
+        data: string,
+        options?: { readonly visible?: boolean },
+      ) {
+        const terminal = yield* currentTerminal(sessionID)
+        if (!terminal) return null
+        const id = terminal.id
+        const written = yield* write(id, data, controllers.get(id)).pipe(
+          Effect.as(true),
+          Effect.catchTag("PersistentPty.NotFoundError", () => {
+            if (current.get(sessionID) === id) current.delete(sessionID)
+            controllers.delete(id)
+            return Effect.succeed(false)
+          }),
+        )
+        // Publish the reveal unless the caller asked to keep this write out of sight.
+        if (written && options?.visible !== false) yield* bus.publish(Selected, { sessionID, ptyID: id })
+        return written ? id : null
+      })
+
       const remove = Effect.fn("PersistentPty.remove")(function* (id: Pty.ID) {
         const terminal = yield* get(id)
         const response = yield* request(daemon, { op: "terminate", id: fromID(id) })
         if (response.type !== "ok") return yield* unexpected(response)
         if (current.get(terminal.sessionID) === id) current.delete(terminal.sessionID)
+        controllers.delete(id)
         yield* bus.publish(Removed, { sessionID: terminal.sessionID, ptyID: id })
         return undefined
       })
@@ -300,6 +338,7 @@ const makeLayer = (options: Options = {}) =>
       const shutdown = Effect.fn("PersistentPty.shutdown")(function* () {
         const response = yield* daemon.shutdown.pipe(Effect.mapError(unavailable))
         current.clear()
+        controllers.clear()
         if (!response) return
         if (response.type !== "ok") return yield* unexpected(response)
       })
@@ -362,19 +401,30 @@ const makeLayer = (options: Options = {}) =>
           .subscribe(fromID(id), {
             ...input,
             onEvent: (event) => {
+              if (event.type === "controller_changed") {
+                if (event.attachmentID !== undefined) controllers.set(id, event.attachmentID)
+                else controllers.delete(id)
+              }
               if (event.type === "exited") removeVisibleExit(id)
               input.onEvent(event)
             },
           })
           .pipe(Effect.mapError(unavailable))
-        if (attachment.role === "controller") current.set(attachment.terminal.group_id, id)
+        if (attachment.role === "controller") {
+          current.set(attachment.terminal.group_id, id)
+          controllers.set(id, input.attachmentID)
+        }
+        const detached = attachment.detach
         return {
           info: toInfo(attachment.terminal),
           role: attachment.role,
           generation: attachment.generation,
           replay: attachment.replay,
           activate: attachment.activate,
-          detach: attachment.detach,
+          detach: () => {
+            if (controllers.get(id) === input.attachmentID) controllers.delete(id)
+            detached()
+          },
         }
       })
 
@@ -389,6 +439,7 @@ const makeLayer = (options: Options = {}) =>
         rename,
         snapshot,
         read,
+        writeCurrent,
         remove,
         shutdown,
         handoff,

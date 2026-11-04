@@ -2124,6 +2124,7 @@ export type EventSubscribeInput = {
         | "pty.deleted"
         | "persistent-pty.added"
         | "persistent-pty.removed"
+        | "persistent-pty.selected"
         | "persistent-pty.updated"
         | "shell.created"
         | "shell.exited"
@@ -2228,6 +2229,16 @@ export type ExperimentalPersistentPtyReadOutput = {
 export type ExperimentalPersistentPtyReadOperation<E = never> = (
   input: ExperimentalPersistentPtyReadInput,
 ) => Effect.Effect<ExperimentalPersistentPtyReadOutput, E>
+
+export type ExperimentalPersistentPtyWriteInput = {
+  readonly sessionID: Session.ID
+  readonly data: string
+  readonly visible?: boolean | undefined
+}
+export type ExperimentalPersistentPtyWriteOutput = Pty.ID | null
+export type ExperimentalPersistentPtyWriteOperation<E = never> = (
+  input: ExperimentalPersistentPtyWriteInput,
+) => Effect.Effect<ExperimentalPersistentPtyWriteOutput, E>
 
 export type ExperimentalPersistentPtyListInput = { readonly sessionID: Session.ID }
 export type ExperimentalPersistentPtyListOutput = ReadonlyArray<{
@@ -2507,6 +2518,7 @@ export type ExperimentalJobListOperation<E = never> = (
 export interface ExperimentalApi<E = never> {
   readonly persistentPty: {
     readonly read: ExperimentalPersistentPtyReadOperation<E>
+    readonly write: ExperimentalPersistentPtyWriteOperation<E>
     readonly list: ExperimentalPersistentPtyListOperation<E>
     readonly create: ExperimentalPersistentPtyCreateOperation<E>
     readonly shutdown: ExperimentalPersistentPtyShutdownOperation<E>

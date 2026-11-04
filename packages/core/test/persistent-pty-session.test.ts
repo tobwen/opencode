@@ -33,6 +33,23 @@ const transport = Layer.succeed(
 )
 
 describe("PersistentPty session cleanup", () => {
+  it.live("returns null if the current terminal disappears before writing", () =>
+    Effect.gen(function* () {
+      const daemon = yield* fakeDaemon()
+      yield* Effect.gen(function* () {
+        const pty = yield* PersistentPty.Service
+        const directory = yield* tmpdirScoped()
+        const sessionID = Session.ID.make("ses_disappearing_terminal")
+        const terminal = yield* pty.create(sessionID, { args: [], cwd: directory.path, title: "test", env: {} })
+        daemon.disappearAfterList.add(terminal.id)
+
+        expect(yield* pty.writeCurrent(sessionID, "test")).toBeNull()
+        expect(daemon.ops).not.toContain("write")
+        expect(yield* pty.writeCurrent(sessionID, "test")).toBeNull()
+      }).pipe(Effect.provide(layer(daemon)))
+    }),
+  )
+
   it.live("removes a deleted session's terminals", () =>
     Effect.gen(function* () {
       const daemon = yield* fakeDaemon()

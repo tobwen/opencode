@@ -1925,6 +1925,15 @@ export type PersistentPtyRemoved = {
   data: { sessionID: SessionID; ptyID: PtyID }
 }
 
+export type PersistentPtySelected = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "persistent-pty.selected"
+  location?: LocationRef
+  data: { sessionID: SessionID; ptyID: PtyID }
+}
+
 export type ShellCreated = {
   id: EventID
   created: number
@@ -2502,6 +2511,8 @@ export type ConfigEntry =
             env?: Array<string>
             package?: string
             compatibility?: ProviderCompatibility
+            whitelist?: Array<string>
+            blacklist?: Array<string>
             settings?: ConfigProviderSettings
             headers?: { [x: string]: string }
             body?: { [x: string]: JsonValue }
@@ -2918,6 +2929,7 @@ export type V2Event =
   | PtyDeleted
   | PersistentPtyAdded
   | PersistentPtyRemoved
+  | PersistentPtySelected
   | PersistentPtyUpdated
   | ShellCreated
   | ShellExited
@@ -4410,6 +4422,7 @@ export type EventSubscribeInput = {
         | "pty.deleted"
         | "persistent-pty.added"
         | "persistent-pty.removed"
+        | "persistent-pty.selected"
         | "persistent-pty.updated"
         | "shell.created"
         | "shell.exited"
@@ -4486,6 +4499,14 @@ export type PtyConnectTokenOutput = { location: LocationPublicRef; data: PtyTick
 export type ExperimentalPersistentPtyReadInput = { readonly sessionID: string; readonly lines?: number | undefined }
 
 export type ExperimentalPersistentPtyReadOutput = { data: PersistentPtyReadResult | null }["data"]
+
+export type ExperimentalPersistentPtyWriteInput = {
+  readonly sessionID: string
+  readonly data: string
+  readonly visible?: boolean | undefined
+}
+
+export type ExperimentalPersistentPtyWriteOutput = { data: PtyID | null }["data"]
 
 export type ExperimentalPersistentPtyListInput = { readonly sessionID: string }
 
