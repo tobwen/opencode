@@ -14,12 +14,13 @@ import { Keymap } from "../context/keymap"
 import { InteractivityProvider } from "../context/interactivity"
 import { useSessionTerminals } from "../context/session-terminals"
 import { usePromptRef } from "../context/prompt"
+import { useTuiApp } from "../context/runtime"
 import { usePanel } from "../context/panel"
 import { useStorage } from "../context/storage"
 import { useDialog } from "../ui/dialog"
 import { Session } from "../routes/session"
 import { Sidebar } from "../routes/session/sidebar"
-import { clampSessionPaneWidth, SESSION_SIDEBAR_WIDTH } from "../ui/layout"
+import { clampSessionPaneWidth, collapsedSidebarWidth, SESSION_SIDEBAR_WIDTH } from "../ui/layout"
 import { createPaneResize } from "../ui/pane-resize"
 import { PaneResizeHandle } from "../ui/pane-resize-handle"
 import { useToast } from "../ui/toast"
@@ -118,7 +119,14 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   // The sidebar owns the far right on its own, so terminals and panels only share the middle.
   // A fullscreen panel covers it, and narrow terminals fall back to the overlay below.
   const sidebarPaneVisible = createMemo(() => !fullscreen() && wide() && sidebarVisible())
-  const paneRightInset = () => (sidebarPaneVisible() ? SESSION_SIDEBAR_WIDTH : 0)
+  const app = useTuiApp()
+  const [sidebarCollapsed, setSidebarCollapsed] = createSignal(false)
+  // Clicking the version row folds the sidebar down to that row, so every pane that reserves
+  // room for the sidebar has to read the same width.
+  const sidebarWidth = createMemo(() =>
+    sidebarCollapsed() ? collapsedSidebarWidth(app.version) : SESSION_SIDEBAR_WIDTH,
+  )
+  const paneRightInset = () => (sidebarPaneVisible() ? sidebarWidth() : 0)
   const toggleSidebar = () => {
     batch(() => {
       const visible = sidebarVisible()
@@ -376,11 +384,15 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
         <box
           ref={(value: BoxRenderable) => (sidebarNode = value)}
           flexShrink={0}
-          width={SESSION_SIDEBAR_WIDTH}
+          width={sidebarWidth()}
           minWidth={0}
           minHeight={0}
         >
-          <Sidebar sessionID={props.sessionID} />
+          <Sidebar
+            sessionID={props.sessionID}
+            collapsed={sidebarCollapsed()}
+            onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+          />
         </box>
       </Show>
       <Show when={!fullscreen() && (rightPane() === "terminal" || rightPane() === "panel") && availableWidth() >= 3}>
@@ -400,7 +412,11 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
           alignItems="flex-end"
           backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
         >
-          <Sidebar sessionID={props.sessionID} />
+          <Sidebar
+            sessionID={props.sessionID}
+            collapsed={sidebarCollapsed()}
+            onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+          />
         </box>
       </Show>
     </box>
