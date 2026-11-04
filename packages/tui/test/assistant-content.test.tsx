@@ -41,7 +41,9 @@ test("keeps section-shaped text inside fenced code blocks", () => {
   expect(assistantContent("\u00a71\u00a7 ```text\n\u00a712\u00a7 literal\n```\n\u00a72\u00a7 after")).toBe(
     "```text\n\u00a712\u00a7 literal\n```\nafter",
   )
-  expect(assistantContent("~~~~\n```\n\u00a712\u00a7 literal\n```\n~~~~")).toBe("~~~~\n```\n\u00a712\u00a7 literal\n```\n~~~~")
+  expect(assistantContent("~~~~\n```\n\u00a712\u00a7 literal\n```\n~~~~")).toBe(
+    "~~~~\n```\n\u00a712\u00a7 literal\n```\n~~~~",
+  )
 })
 
 test("keeps the address of the item apart from the block", () => {
