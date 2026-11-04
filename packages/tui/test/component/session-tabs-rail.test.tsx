@@ -13,6 +13,8 @@ import { SESSION_TABS_COMPACT_WIDTH } from "../../src/ui/layout"
 import { emptyThemeSource } from "../fixture/fixture"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { createTuiResolvedConfig } from "../fixture/tui-runtime"
+import { DialogProvider } from "../../src/ui/dialog"
+import { ToastProvider } from "../../src/ui/toast"
 
 test("compact rail renders and controls session tabs", async () => {
   const [active, setActive] = createSignal("first")
@@ -40,19 +42,28 @@ test("compact rail renders and controls session tabs", async () => {
   const app = await testRender(
     () => (
       <TestTuiContexts>
-        <ConfigProvider config={createTuiResolvedConfig({ tabs: { indicators: "status" } })}>
+        <ConfigProvider
+          config={createTuiResolvedConfig({
+            tabs: { indicators: "status" },
+            session: { confirm_tab_close: false },
+          })}
+        >
           <Keymap.Provider>
             <ThemeProvider mode="dark" source={emptyThemeSource}>
-              <box width="100%" height="100%" flexDirection="row">
-                <SessionTabs
-                  controller={controller}
-                  orientation="vertical"
-                  animations={false}
-                  indicators={indicators()}
-                  width={SESSION_TABS_COMPACT_WIDTH}
-                />
-                <text>transcript</text>
-              </box>
+              <ToastProvider>
+                <DialogProvider>
+                  <box width="100%" height="100%" flexDirection="row">
+                    <SessionTabs
+                      controller={controller}
+                      orientation="vertical"
+                      animations={false}
+                      indicators={indicators()}
+                      width={SESSION_TABS_COMPACT_WIDTH}
+                    />
+                    <text>transcript</text>
+                  </box>
+                </DialogProvider>
+              </ToastProvider>
             </ThemeProvider>
           </Keymap.Provider>
         </ConfigProvider>

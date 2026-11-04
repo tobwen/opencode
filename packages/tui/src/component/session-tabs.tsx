@@ -23,6 +23,7 @@ import { Portal, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { useConfig } from "../config"
 import { useSessionTabs } from "../context/session-tabs"
 import { useData } from "../context/data"
+import { useClient } from "../context/client"
 import { useClipboard } from "../context/clipboard"
 import { useTheme } from "../context/theme"
 import {
@@ -46,12 +47,14 @@ import { projectName } from "../util/project"
 import { stringWidth } from "../util/string-width"
 import { marqueeCycleWidth, marqueeOverflows, marqueeTextParts } from "../util/marquee"
 import { useDialog } from "../ui/dialog"
+import { DialogConfirm } from "../ui/dialog-confirm"
 import { useToast } from "../ui/toast"
 import { DialogSessionRename } from "./dialog-session-rename"
 import { Keymap } from "../context/keymap"
 import "./spinner-renderable"
 import { SPINNER_FRAMES } from "./spinner-frames"
 import { SessionTabsRailControls, SessionTabHalfRow } from "./session-tabs-rail"
+import { useCloseSessionTab } from "./session-tabs-close"
 import "./title-shimmer"
 
 export const TAB_SPINNERS = {
@@ -111,6 +114,7 @@ export const EMPTY_SESSION_TAB_STATUS: SessionTabsStatus = {
 export type SessionTabsController = Pick<ContextController, "tabs" | "current" | "select" | "close" | "move"> & {
   newTab?: () => boolean
   add?: () => void
+  setCloseConfirmer?: ContextController["setCloseConfirmer"]
   recentlyClosed?: ContextController["recentlyClosed"]
   reopen?: ContextController["reopen"]
   detail?: (sessionID: string) => string | undefined
@@ -375,11 +379,22 @@ function TabContextMenu(props: { state: TabContextMenuState; tabs: SessionTabsCo
   const dialog = useDialog()
   const clipboard = useClipboard()
   const toast = useToast()
+  const client = useClient()
   onCleanup(Keymap.use().mode.push("menu"))
   Keymap.createLayer(() => ({
     mode: "menu",
     commands: [{ bind: "escape,ctrl+c", title: "Close tab menu", group: "Tabs", run: props.onClose }],
   }))
+  const remove = (sessionID: string) => {
+    dialog.replace(() => (
+      <DialogConfirm
+        title="Remove session"
+        message="This permanently deletes the session and subsessions."
+        label={{ cancel: "Cancel", confirm: "Remove" }}
+        onConfirm={() => void client.api.session.remove({ sessionID }).catch(toast.error)}
+      />
+    ))
+  }
   const actions = createMemo<Array<{ title: string; run?: () => void }>>(() => {
     const sessionID = props.state.sessionID
     const title = props.state.title
@@ -393,6 +408,7 @@ function TabContextMenu(props: { state: TabContextMenuState; tabs: SessionTabsCo
               run: () =>
                 props.tabs.rename ? props.tabs.rename(sessionID) : DialogSessionRename.show(dialog, sessionID, title),
             },
+            { title: "Remove session", run: () => remove(sessionID) },
             {
               title: "Copy session ID",
               run: () =>
@@ -513,6 +529,10 @@ export function SessionTabs(
   } = {},
 ) {
   const config = useConfig().data
+  const controller = props.controller ?? useSessionTabs()
+  const confirmClose = useCloseSessionTab(controller)
+  createEffect(() => controller.setCloseConfirmer?.(confirmClose))
+  onCleanup(() => controller.setCloseConfirmer?.(undefined))
 
   return (
     <Switch>
