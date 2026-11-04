@@ -206,6 +206,35 @@ it.effect("summaries written before kept-message references keep their stored re
   }),
 )
 
+it.effect("keeps hidden shell notices out of compacted context", () =>
+  Effect.gen(function* () {
+    const sessionID = Session.ID.make("ses_hidden_recent")
+    const session = yield* insertSession(sessionID)
+    const notice = (text: string, hidden: boolean) =>
+      SessionMessage.Synthetic.make({
+        id: SessionMessage.ID.create(),
+        type: "synthetic",
+        text,
+        metadata: { source: "shell", hidden },
+        time: { created: DateTime.makeUnsafe(0) },
+      })
+    const messages = [
+      textUser("Earlier question"),
+      textUser("Kept question"),
+      notice("hidden output", true),
+      notice("visible output", false),
+    ]
+    yield* storeMessages(sessionID, messages)
+    expect(yield* compactManually(session, messages)).toEqual({ status: "completed" })
+    const [compaction] = yield* (yield* SessionStore.Service).context(sessionID)
+    expect(compaction).toMatchObject({
+      type: "compaction",
+      metadata: { recent: "[User]: Kept question\n\n[Synthetic context]: visible output" },
+    })
+    expect(JSON.stringify(toLLMMessages([compaction], resolved.ref))).not.toContain("hidden output")
+  }),
+)
+
 it.effect("forks rebuild the recent text of a summary they copied", () =>
   Effect.gen(function* () {
     const parentID = Session.ID.make("ses_fork_recent_parent")

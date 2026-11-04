@@ -52,6 +52,18 @@ describe("toLLMMessages", () => {
     ])
   })
 
+  test("hidden synthetic messages stay out of model context", () => {
+    const notice = SessionMessage.Synthetic.make({
+      id: id("hidden-shell"),
+      type: "synthetic",
+      text: "```\nlocked output\n```",
+      metadata: { source: "shell", hidden: true },
+      time: { created },
+    })
+
+    expect(toLLMMessages([notice], model)).toEqual([])
+  })
+
   test("omits empty assistant turns", () => {
     const assistant = (value: string, content: SessionMessage.Assistant["content"]) =>
       SessionMessage.Assistant.make({
