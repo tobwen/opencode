@@ -3487,6 +3487,7 @@ export type SessionShellInput = {
   readonly sessionID: string
   readonly id?: string | undefined
   readonly command: string
+  readonly hidden?: boolean | undefined
 }
 
 export type SessionShellOutput = void
