@@ -225,6 +225,8 @@ import type {
   PtyConnectTokenOutput,
   ExperimentalPersistentPtyReadInput,
   ExperimentalPersistentPtyReadOutput,
+  ExperimentalPersistentPtyWriteInput,
+  ExperimentalPersistentPtyWriteOutput,
   ExperimentalPersistentPtyListInput,
   ExperimentalPersistentPtyListOutput,
   ExperimentalPersistentPtyCreateInput,
@@ -1375,6 +1377,18 @@ export function make(options: ClientOptions) {
               method: "GET",
               path: `/api/experimental/session/${encodeURIComponent(input.sessionID)}/terminal/read`,
               query: { lines: input["lines"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 503],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        write: (input: ExperimentalPersistentPtyWriteInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalPersistentPtyWriteOutput }>(
+            {
+              method: "POST",
+              path: `/api/experimental/session/${encodeURIComponent(input.sessionID)}/terminal/input`,
+              body: { data: input["data"], visible: input["visible"] },
               successStatus: 200,
               declaredStatuses: [400, 401, 503],
               empty: false,

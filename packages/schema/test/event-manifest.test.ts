@@ -64,6 +64,7 @@ describe("public event manifest", () => {
     expect(PersistentPty.Event.Definitions).toEqual([
       PersistentPty.Event.Added,
       PersistentPty.Event.Removed,
+      PersistentPty.Event.Selected,
       PersistentPty.Event.Updated,
     ])
     expect(Form.Event.Definitions).toEqual([Form.Event.Created, Form.Event.Replied, Form.Event.Cancelled])

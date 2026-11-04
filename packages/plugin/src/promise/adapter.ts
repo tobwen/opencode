@@ -343,6 +343,8 @@ export function fromPromise(plugin: Plugin) {
           experimental: {
             terminal: {
               read: adaptApiMethod(ExperimentalEndpoints["persistentPty.read"], host.experimental.terminal.read),
+              write: adaptApiMethod(ExperimentalEndpoints["persistentPty.write"], host.experimental.terminal.write),
+              create: adaptApiMethod(ExperimentalEndpoints["persistentPty.create"], host.experimental.terminal.create),
             },
             generate: {
               text: adaptApiMethod(GenerateEndpoints["generate.text"], host.experimental.generate.text),

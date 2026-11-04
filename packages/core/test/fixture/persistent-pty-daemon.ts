@@ -144,6 +144,7 @@ export const fakeDaemon = Effect.fn(function* () {
   const holdCreate: { until?: Promise<void> } = {}
   // While set, `list` answers only once it resolves, like a busy daemon.
   const holdList: { until?: Promise<void> } = {}
+  const disappearAfterList = new Set<string>()
   const ops: string[] = []
   const requests: Record<string, unknown>[] = []
   let nextID = 1
@@ -184,7 +185,12 @@ export const fakeDaemon = Effect.fn(function* () {
     requests.push(request)
     if (request.op === "ping") return pong
     if (request.op === "list") {
-      const list = () => ({ type: "processes", processes: processes.filter((item) => item.mode === request.mode) })
+      const list = () => ({
+        type: "processes",
+        processes: processes.filter(
+          (item) => item.mode === request.mode && !disappearAfterList.delete(`pty_persistent_${item.id}`),
+        ),
+      })
       return holdList.until ? holdList.until.then(list) : list()
     }
     if (request.op === "get") {
@@ -272,6 +278,7 @@ export const fakeDaemon = Effect.fn(function* () {
     holdList,
     handoffTTL,
     trap,
+    disappearAfterList,
     ops,
     requests,
     exit,
