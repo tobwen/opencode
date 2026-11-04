@@ -1,4 +1,4 @@
-import { createEffect, createMemo, For, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { TextAttributes } from "@opentui/core"
 import { useTheme } from "../../../context/theme"
@@ -21,6 +21,7 @@ export type ComposerProps = {
 export function Composer(props: ComposerProps) {
   const theme = useTheme()
 
+  const [escHover, setEscHover] = createSignal(false)
   const [store, setStore] = createStore({
     tabs: {} as Record<string, ComposerTab>,
     active: "",
@@ -108,19 +109,37 @@ export function Composer(props: ComposerProps) {
                   <For each={tabList()}>
                     {(t) => {
                       const isActive = createMemo(() => store.active === t.id)
+                      const [hover, setHover] = createSignal(false)
                       return (
-                        <text
-                          fg={isActive() ? theme.text.base : theme.text.muted}
-                          attributes={isActive() ? TextAttributes.BOLD : undefined}
+                        <box
+                          onMouseOver={() => setHover(true)}
+                          onMouseOut={() => setHover(false)}
+                          onMouseUp={() => setStore("active", t.id)}
                         >
-                          {t.label}
-                        </text>
+                          <text
+                            fg={
+                              isActive()
+                                ? theme.text.base
+                                : hover()
+                                  ? theme.text.action.primary.hovered
+                                  : theme.text.muted
+                            }
+                            attributes={isActive() ? TextAttributes.BOLD : undefined}
+                          >
+                            {t.label}
+                          </text>
+                        </box>
                       )
                     }}
                   </For>
                 </box>
               </Show>
-              <text fg={theme.text.muted} onMouseUp={close}>
+              <text
+                fg={escHover() ? theme.text.action.primary.hovered : theme.text.muted}
+                onMouseOver={() => setEscHover(true)}
+                onMouseOut={() => setEscHover(false)}
+                onMouseUp={close}
+              >
                 esc
               </text>
             </box>

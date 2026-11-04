@@ -10,6 +10,7 @@ function context(options?: {
   dismissed?: boolean
   integrations?: Array<{ connections: unknown[] }>
   dispatched?: string[]
+  sessionID?: string
 }) {
   const color = RGBA.fromInts(200, 200, 200)
   const [onboarding, setOnboarding] = createStore({ dismissed: options?.dismissed ?? false })
@@ -124,3 +125,4 @@ test("sidebar onboarding opens integrations and can be dismissed", async () => {
     app.renderer.destroy()
   }
 })
+
