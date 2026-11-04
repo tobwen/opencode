@@ -22,6 +22,7 @@ import { useTheme } from "./theme"
 import { useNewDesigns } from "../config"
 import { useToast } from "../ui/toast"
 import { useRoute } from "./route"
+import { providerDisplayName } from "../util/provider-display"
 import { useData } from "./data"
 import { usePermission } from "./permission"
 import { useLocation } from "./location"
@@ -407,7 +408,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           const provider = providers()?.find((item) => item.id === value.providerID)
           const info = models()?.find((item) => item.providerID === value.providerID && item.id === value.modelID)
           return {
-            provider: provider?.name ?? value.providerID,
+            provider: provider ? providerDisplayName(provider.name) : value.providerID,
             model: info?.name ?? `${value.modelID} (unavailable)`,
             reasoning: (info?.variants?.length ?? 0) !== 0,
           }
