@@ -136,6 +136,13 @@ export const Info = Schema.Struct({
       }),
     }),
   ).annotate({ description: "Terminal integration settings" }),
+  dialog: Schema.optional(
+    Schema.Struct({
+      confirm_default: Schema.optional(Schema.Literals(["cancel", "confirm"])).annotate({
+        description: "Which button a confirmation dialog focuses by default",
+      }),
+    }),
+  ).annotate({ description: "Confirmation dialog settings" }),
   prompt: Schema.optional(
     Schema.Struct({
       editor: Schema.optional(Schema.Boolean).annotate({
@@ -154,6 +161,9 @@ export const Info = Schema.Struct({
       sidebar: Schema.optional(Schema.Literals(["auto", "hide"])).annotate({
         description: "Session sidebar visibility; 'auto' shows it when space permits",
       }),
+      confirm_tab_close: Schema.optional(Schema.Boolean).annotate({
+        description: "Ask for confirmation before closing a session tab",
+      }),
       scrollbar: Schema.optional(Schema.Boolean).annotate({ description: "Show the session transcript scrollbar" }),
       submit_scroll: Schema.optional(Schema.Literals(["bottom", "keep"])).annotate({
         description: "Jump to the latest message when sending a prompt, or keep the current transcript position",
@@ -165,8 +175,7 @@ export const Info = Schema.Struct({
         description: "Group related transcript items automatically or render each item separately",
       }),
       verbosity: Schema.optional(Schema.Literals(["low", "medium", "high"])).annotate({
-        description:
-          "Transcript detail level: low summarizes each run of tools and thoughts, high opens exploration and instruction groups",
+        description: "Transcript detail level: low summarizes each run of tools and thoughts, high opens exploration and instruction groups",
       }),
       image_preview: Schema.optional(Schema.Boolean).annotate({
         description: "Show user attachment and tool-result images in the session transcript",
@@ -259,13 +268,19 @@ export const Info = Schema.Struct({
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
-export type Resolved = Omit<Info, "attention" | "cursor" | "keybinds" | "leader" | "mouse" | "session" | "tabs"> & {
+export type Resolved = Omit<
+  Info,
+  "attention" | "cursor" | "dialog" | "keybinds" | "leader" | "mouse" | "session" | "tabs"
+> & {
   attention: {
     notifications: boolean
     sound: boolean
     volume: number
     sound_pack: string
     sounds: AttentionSoundPaths
+  }
+  dialog: {
+    confirm_default: "cancel" | "confirm"
   }
   keybinds: TuiKeybind.BindingLookupView
   leader: { timeout: number }
@@ -292,7 +307,8 @@ export function resolve(
   input: Info,
   options: { terminalSuspend: boolean; environment?: Readonly<Record<string, string | undefined>> },
 ): Resolved {
-  const tabsMode = input.tabs?.mode ?? (input.tabs?.enabled === undefined ? "auto" : input.tabs.enabled ? "on" : "off")
+  const tabsMode =
+    input.tabs?.mode ?? (input.tabs?.enabled === undefined ? "auto" : input.tabs.enabled ? "on" : "off")
   const keybinds: TuiKeybind.KeybindOverrides = { ...input.keybinds }
   if (!options.terminalSuspend) {
     keybinds["terminal.suspend"] = "none"
@@ -317,6 +333,9 @@ export function resolve(
       bindingDefaults: TuiKeybind.bindingDefaults(),
     }),
     leader: { timeout: input.leader?.timeout ?? 2000 },
+    dialog: {
+      confirm_default: input.dialog?.confirm_default ?? "cancel",
+    },
     mouse: input.mouse ?? true,
     cursor: {
       style: input.cursor?.style ?? "block",
@@ -326,6 +345,7 @@ export function resolve(
       ...input.session,
       new_location: input.session?.new_location ?? "launch",
       permissions: input.session?.permissions ?? "prompt",
+      confirm_tab_close: input.session?.confirm_tab_close ?? true,
       tps: input.session?.tps ?? true,
     },
     tabs: {
