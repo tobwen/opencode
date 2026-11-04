@@ -55,6 +55,7 @@ export const messageToText = (message: SessionMessage.Info | SessionStored.User)
         .join("\n")
 
     case "synthetic":
+      if (message.metadata?.hidden === true) return ""
       return `[Synthetic context]: ${message.text}`
 
     case "skill":

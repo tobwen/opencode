@@ -252,6 +252,7 @@ export type SessionShellInput = {
   readonly sessionID: Session.ID
   readonly id?: SessionMessage.ID | undefined
   readonly command: string
+  readonly hidden?: boolean | undefined
 }
 export type SessionShellOutput = void
 export type SessionShellOperation<E = never> = (input: SessionShellInput) => Effect.Effect<SessionShellOutput, E>

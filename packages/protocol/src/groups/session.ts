@@ -423,6 +423,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, FormI ext
         payload: Schema.Struct({
           id: SessionMessage.ID.pipe(Schema.optional),
           command: Schema.String,
+          hidden: Schema.Boolean.pipe(Schema.optional),
         }),
         success: HttpApiSchema.NoContent,
         error: SessionNotFoundError,

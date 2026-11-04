@@ -39,6 +39,10 @@ type PromptRequest = SessionPrompt.Input & {
  * Build once in the host Scope: `const sessions = yield* Session.make()`.
  * Use `sessions.forSession(id)` for handles that share host services and reload current state.
  */
+// Hidden shell output is shown as a code block because the text carries shell
+// tags and raw output that must not be read as Markdown.
+const shellBlock = (text: string) => `\`\`\`\n${text}\n\`\`\``
+
 export const make = Effect.fn("Session.make")(function* () {
   const bus = yield* Bus.Service
   const database = yield* Database.Service
@@ -191,21 +195,22 @@ export const make = Effect.fn("Session.make")(function* () {
   )
   const shell = Effect.fn("Session.shell")(function* (
     sessionID: SessionSchema.ID,
-    input: { id?: SessionMessage.ID; command: string },
+    input: { id?: SessionMessage.ID; command: string; hidden?: boolean },
   ) {
     const session = yield* get(sessionID)
     // The server owns completion recording even if the submitting client disconnects.
     const running = yield* Effect.gen(function* () {
       const started = yield* SessionShell.start({ session, command: input.command }).pipe(
         Effect.provideService(Instance.Service, instances),
-        Effect.tapError((error) =>
-          synthetic(sessionID, {
-            text: `User shell command failed to start:\n${input.command}\n\n${error.message}`,
+        Effect.tapError((error) => {
+          const text = `User shell command failed to start:\n${input.command}\n\n${error.message}`
+          return synthetic(sessionID, {
+            text: input.hidden ? shellBlock(text) : text,
             description: input.command,
-            metadata: { source: "shell", state: "error" },
+            metadata: { source: "shell", state: "error", ...(input.hidden ? { hidden: true } : {}) },
             resume: false,
-          }),
-        ),
+          })
+        }),
         Effect.orDie,
       )
       yield* bus.publish(
@@ -223,8 +228,10 @@ export const make = Effect.fn("Session.make")(function* () {
         shell: terminal.info,
         output: preview,
       })
+      const message = ShellResult.userNotification(terminal)
       yield* synthetic(sessionID, {
-        ...ShellResult.userNotification(terminal),
+        ...message,
+        ...(input.hidden ? { text: shellBlock(message.text), metadata: { ...message.metadata, hidden: true } } : {}),
         resume: false,
       }).pipe(
         Effect.catchTag("Session.NotFoundError", () => Effect.void),
