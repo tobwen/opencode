@@ -5,6 +5,7 @@ import fuzzysort from "fuzzysort"
 import { createEffect, createMemo, createSignal, type Accessor } from "solid-js"
 import { Keymap } from "../context/keymap"
 import { Config } from "../config"
+import { providerDisplayName } from "../util/provider-display"
 import { OneCellSpinner } from "../component/one-cell-spinner"
 import { SEED_MONO, WORK_SPINNERS } from "../ui/one-cell-motion"
 import {
@@ -1133,12 +1134,12 @@ export function RunModelSelectBody(props: {
             return {
               providerID: provider.id,
               modelID,
-              providerName: provider.name,
-              category: provider.name,
+              providerName: providerDisplayName(provider.name),
+              category: providerDisplayName(provider.name),
               display: title,
               footer,
               footerTone: current ? ("selection" as const) : undefined,
-              keywords: `${provider.id} ${provider.name} ${modelID} ${title} ${footer ?? ""}`,
+              keywords: `${provider.id} ${providerDisplayName(provider.name)} ${modelID} ${title} ${footer ?? ""}`,
               current,
             }
           }),

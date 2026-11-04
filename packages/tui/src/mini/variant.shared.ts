@@ -9,11 +9,12 @@
 import { createSession, sessionVariant, type RunSession, type SessionMessages } from "./session.shared"
 import type { RunInput, RunProvider } from "./types"
 import { cycleModelVariant, normalizeModelVariant } from "../model-preference"
+import { providerDisplayName } from "../util/provider-display"
 
 export function modelInfo(providers: RunProvider[] | undefined, model: NonNullable<RunInput["model"]>) {
   const provider = providers?.find((item) => item.id === model.providerID)
   return {
-    provider: provider?.name ?? model.providerID,
+    provider: provider ? providerDisplayName(provider.name) : model.providerID,
     model: provider?.models[model.modelID]?.name ?? model.modelID,
   }
 }

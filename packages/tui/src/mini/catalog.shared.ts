@@ -6,6 +6,7 @@ import type {
   OpenCodeClient,
   ProviderListOutput,
 } from "@opencode/client/promise"
+import { providerDisplayName } from "../util/provider-display"
 import type { RunAgent, RunCommand, RunProvider, RunReference } from "./types"
 
 type CurrentAgent = AgentListOutput["data"][number]
@@ -51,7 +52,7 @@ export function runProviders(providers: CurrentProvider[], models: CurrentModel[
   for (const provider of providers) {
     grouped.set(provider.id, {
       id: provider.id,
-      name: provider.name,
+      name: providerDisplayName(provider.name),
       models: {},
     })
   }

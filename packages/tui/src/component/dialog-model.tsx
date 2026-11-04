@@ -13,6 +13,7 @@ import { useLocation } from "../context/location"
 import { useNewDesigns } from "../config"
 import { DialogFreeModels } from "./dialog-model-free"
 import { FavoriteMarker, isFreeModel, prioritizeFavorites, sortModelOptions } from "./model-options"
+import { providerDisplayName } from "../util/provider-display"
 
 export function DialogModel(props: { providerID?: string }) {
   const local = useLocal()
@@ -102,7 +103,7 @@ function DialogConnectedModels(props: {
             value: { providerID: model.providerID, modelID: model.id },
             title: model.name,
             releaseDate: model.time.released,
-            description: provider?.name ?? model.providerID,
+            description: provider ? providerDisplayName(provider.name) : model.providerID,
             category,
             footer: trailing(model, isFavorite(item)),
             onSelect: () => {
@@ -132,11 +133,17 @@ function DialogConnectedModels(props: {
           return {
             value,
             providerID: model.providerID,
-            providerName: provider?.name ?? model.providerID,
+            providerName: provider ? providerDisplayName(provider.name) : model.providerID,
             title: model.name,
             releaseDate: model.time.released,
             description: newDesigns() ? undefined : favorite ? "(Favorite)" : undefined,
-            category: connected() ? (freeGroup(model) ? "Free" : (provider?.name ?? model.providerID)) : undefined,
+            category: connected()
+              ? freeGroup(model)
+                ? "Free"
+                : provider
+                  ? providerDisplayName(provider.name)
+                  : model.providerID
+              : undefined,
             footer: trailing(model, favorite),
             free: isFreeModel(model),
             onSelect() {
@@ -190,7 +197,7 @@ function DialogConnectedModels(props: {
   const title = createMemo(() => {
     const value = provider()
     if (!value) return "Select model"
-    return value.name
+    return providerDisplayName(value.name)
   })
 
   return (
