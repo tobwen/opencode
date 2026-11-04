@@ -10,7 +10,12 @@ type SessionTerminalsState = {
   sessions: Record<string, string | null>
 }
 
-export const { use: useSessionTerminals, provider: SessionTerminalsProvider } = createSimpleContext({
+export const {
+  // Exported so tests can inject a list without standing up the storage and event providers.
+  context: SessionTerminalsContext,
+  use: useSessionTerminals,
+  provider: SessionTerminalsProvider,
+} = createSimpleContext({
   name: "SessionTerminals",
   init: () => {
     const client = useClient()
@@ -63,6 +68,16 @@ export const { use: useSessionTerminals, provider: SessionTerminalsProvider } = 
         }),
       )
     }
+    // The server reports the terminal that receives input, so the pane shows it even when closed.
+    onCleanup(
+      event.on("persistent-pty.selected", (evt) => {
+        if (!available()) return
+        const { sessionID, ptyID } = evt.data
+        void refresh(sessionID)
+          .then(() => selectTerminal(sessionID, ptyID, { focus: false }))
+          .catch((error) => console.error("Failed to show the persistent terminal of the session", error))
+      }),
+    )
     // The event stream opens with server.connected, so this runs for the first connection and every reconnect.
     onCleanup(
       event.on("server.connected", () => {

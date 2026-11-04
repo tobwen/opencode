@@ -68,7 +68,10 @@ smoke(
         }),
       )
       expect(yield* waitForText(base, first.id, "20")).toContain("1\n2\n")
-      expect(yield* Effect.promise(() => client.experimental.persistentPty.read({ sessionID }))).toBeNull()
+      // Creating a terminal selects it, so the newest terminal is current until a controller attaches.
+      expect(yield* Effect.promise(() => client.experimental.persistentPty.read({ sessionID }))).toMatchObject({
+        ptyID: second.id,
+      })
       const controller = yield* Effect.acquireRelease(
         Effect.promise(() => openTerminalSocket(base, first.id, "read-first")),
         (connection) => Effect.sync(() => connection.socket.close()),
@@ -646,6 +649,52 @@ smoke(
   30_000,
 )
 
+smoke(
+  "writes without revealing the terminal when the caller asks for visible false",
+  () =>
+    Effect.gen(function* () {
+      const fixture = yield* testDirectory()
+      const server = yield* ServerProcess.start<never, never>({
+        hostname: "127.0.0.1",
+        port: 0,
+        password: "secret",
+        app: { version: "test-version" },
+        database: { path: fixture.database },
+        pty: { root: fixture.directory },
+        fs: { filewatcher: false },
+      })
+      const base = HttpServer.formatAddress(server.address)
+      const sessionID = Session.ID.make("ses_persistent_pty_visible")
+      const events = yield* Effect.promise(() => openEventStream(base))
+      const terminal = Schema.decodeUnknownSync(PersistentPty.Info)(
+        (yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal`, {
+          command: "/bin/sh",
+          args: ["-c", "stty -echo; exec cat"],
+          cwd: process.cwd(),
+          title: "hidden",
+          env: {},
+        })).data,
+      )
+      expect(yield* Effect.promise(() => events.next("persistent-pty.added"))).toMatchObject({
+        data: { sessionID, terminal: { id: terminal.id } },
+      })
+      yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal/input`, { data: "revealed\n" })
+      expect(yield* Effect.promise(() => events.next("persistent-pty.selected"))).toMatchObject({
+        data: { sessionID, ptyID: terminal.id },
+      })
+      yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal/input`, {
+        data: "concealed\n",
+        visible: false,
+      })
+      expect(yield* Effect.promise(() => events.next("persistent-pty.selected", 250))).toBeUndefined()
+      const snapshot = yield* request(base, "GET", `/api/experimental/persistent-pty/${terminal.id}/snapshot`)
+      expect(isRecord(snapshot.data) && snapshot.data.text).toContain("concealed")
+      yield* request(base, "DELETE", `/api/experimental/persistent-pty/${terminal.id}`)
+      yield* Effect.promise(() => events.close())
+    }),
+  20_000,
+)
+
 function testDirectory() {
   return Effect.acquireRelease(
     Effect.promise(async () => {
@@ -715,7 +764,9 @@ async function openEventStream(base: string) {
   const decoder = new TextDecoder()
   let pending = ""
   return {
-    async next(type: string) {
+    // With a timeout, returns undefined once the window passes, so a missing event can be asserted.
+    async next(type: string, timeout?: number) {
+      const deadline = timeout === undefined ? undefined : Date.now() + timeout
       while (true) {
         const boundary = pending.indexOf("\n\n")
         if (boundary !== -1) {
@@ -730,7 +781,11 @@ async function openEventStream(base: string) {
           if (isRecord(event) && event.type === type) return event
           continue
         }
-        const chunk = await reader.read()
+        const chunk =
+          deadline === undefined
+            ? await reader.read()
+            : await Promise.race([reader.read(), Bun.sleep(Math.max(1, deadline - Date.now())).then(() => undefined)])
+        if (chunk === undefined) return undefined
         if (chunk.done) throw new Error(`Persistent PTY event stream closed before ${type}`)
         pending += decoder.decode(chunk.value, { stream: true })
       }
