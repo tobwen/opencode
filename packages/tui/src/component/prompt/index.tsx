@@ -359,6 +359,8 @@ export function Prompt(props: PromptProps) {
   const [store, setStore] = createStore<{
     prompt: PromptInfo
     mode: "normal" | "shell"
+    // Shell commands started with the section sign stay out of the model context.
+    shellHidden: boolean
     extmarkToPart: Map<number, PromptPartRef>
     interrupt: number
     placeholder: number
@@ -366,6 +368,7 @@ export function Prompt(props: PromptProps) {
     placeholder: randomIndex(list().length),
     prompt: emptyPrompt(),
     mode: "normal",
+    shellHidden: false,
     extmarkToPart: new Map(),
     interrupt: 0,
   })
@@ -981,6 +984,17 @@ export function Prompt(props: PromptProps) {
           group: "Prompt",
           run: () => {
             setStore("placeholder", randomIndex(shell().length))
+            setStore("shellHidden", false)
+            setStore("mode", "shell")
+          },
+        },
+        {
+          bind: "§",
+          title: "Hidden shell mode",
+          group: "Prompt",
+          run: () => {
+            setStore("placeholder", randomIndex(shell().length))
+            setStore("shellHidden", true)
             setStore("mode", "shell")
           },
         },
@@ -1186,7 +1200,7 @@ export function Prompt(props: PromptProps) {
     // (which may have absorbed mid-flight typing). Failure paths restore the
     // snapshot unless the user has started typing something new.
     const currentMode = store.mode
-    const entry = { ...store.prompt, mode: currentMode }
+    const entry = { ...store.prompt, mode: currentMode, shellHidden: store.shellHidden }
     if (trimmed) {
       resetComposer()
       props.onSubmit?.()
@@ -1196,6 +1210,7 @@ export function Prompt(props: PromptProps) {
       input.setText(entry.text)
       setStore("prompt", entry)
       setStore("mode", entry.mode ?? "normal")
+      setStore("shellHidden", entry.shellHidden)
       restoreExtmarksFromPrompt(entry)
       input.cursorOffset = measure(entry.text)
     }
@@ -1312,7 +1327,7 @@ export function Prompt(props: PromptProps) {
     history.append(entry)
     if (currentMode === "shell") {
       move.startSubmit()
-      const send = () => client.api.session.shell({ sessionID: target, command: inputText })
+      const send = () => client.api.session.shell({ sessionID: target, command: inputText, hidden: entry.shellHidden })
       void (newSession ? newSession.gate.then(send) : send()).catch((error) =>
         newSession ? newSession.recover(error) : fail("Failed to run shell command", error),
       )
@@ -1592,7 +1607,9 @@ export function Prompt(props: PromptProps) {
     if (store.mode === "shell") return theme.text.action.primary.selected
     return promptDisplay().agentColor ?? theme.border.base
   })
-  const agentLabel = createMemo(() => (store.mode === "shell" ? "Shell" : promptDisplay().agentLabel))
+  const agentLabel = createMemo(() =>
+    store.mode === "shell" ? (store.shellHidden ? "Shell (hidden)" : "Shell") : promptDisplay().agentLabel,
+  )
   const animateMetadata = !revealedPromptMetadata.has(local)
   const metadataAnimationsEnabled = () => animationsEnabled() && animateMetadata
   const agentMetaAlpha = createFadeIn(() => !!agentLabel(), metadataAnimationsEnabled)
