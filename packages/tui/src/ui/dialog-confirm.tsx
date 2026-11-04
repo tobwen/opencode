@@ -1,6 +1,6 @@
 import { Keymap } from "../context/keymap"
 import { useTheme } from "../context/theme"
-import { useNewDesigns } from "../config"
+import { useConfig, useNewDesigns } from "../config"
 import { DialogButtons, DialogHeader, DialogLayout, useDialog } from "./dialog"
 import { createStore } from "solid-js/store"
 import { Locale } from "../util/locale"
@@ -21,9 +21,11 @@ const keys = ["cancel", "confirm"] as const
 export function DialogConfirm(props: DialogConfirmProps) {
   const dialog = useDialog()
   const theme = useTheme().surface("dialog")
+  const config = useConfig()
   const newDesigns = useNewDesigns()
   const [store, setStore] = createStore({
-    active: "confirm" as "confirm" | "cancel",
+    // Cancel is the default so a stray Enter cannot run the action.
+    active: config.data.dialog.confirm_default,
   })
 
   const choose = (key: "confirm" | "cancel") => {
