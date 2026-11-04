@@ -74,7 +74,7 @@ export function SidebarOnboarding(props: { context: Plugin.Context; sessionID: s
   )
 }
 
-function SidebarFooter(props: { context: Plugin.Context; sessionID: string }) {
+export function SidebarFooter(props: { context: Plugin.Context; sessionID: string }) {
   const session = createMemo(() => props.context.data.session.get(props.sessionID))
   const move = usePromptMove({
     projectID: () => session()?.projectID,
