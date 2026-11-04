@@ -69,5 +69,6 @@ export interface ReadResult extends Schema.Schema.Type<typeof ReadResult> {}
 
 export const Added = ephemeral({ type: "persistent-pty.added", schema: { sessionID: Session.ID, terminal: Info } })
 export const Removed = ephemeral({ type: "persistent-pty.removed", schema: { sessionID: Session.ID, ptyID: Pty.ID } })
+export const Selected = ephemeral({ type: "persistent-pty.selected", schema: { sessionID: Session.ID, ptyID: Pty.ID } })
 export const Updated = ephemeral({ type: "persistent-pty.updated", schema: { sessionID: Session.ID, terminal: Info } })
-export const Event = { Added, Removed, Updated, Definitions: inventory(Added, Removed, Updated) }
+export const Event = { Added, Removed, Selected, Updated, Definitions: inventory(Added, Removed, Selected, Updated) }

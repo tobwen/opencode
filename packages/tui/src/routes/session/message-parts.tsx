@@ -121,6 +121,13 @@ export function reasoningContent(part: SessionMessageAssistantReasoning) {
   return part.text.replace("[REDACTED]", "").trim()
 }
 
+// A context plugin asks the model to prefix each reply with a section tag. The tag is not Markdown:
+// it pushes the block syntax off the line start, so headings, lists, quotes and tables parse as prose.
+// Rendering drops the tag only. The stored text, the prompt cache and what the model sees stay as is.
+export function assistantContent(text: string) {
+  return text.replace(/^([ \t]*)\u00a7\d+\u00a7[ \t]*/gm, "$1").trim()
+}
+
 function ReasoningHeader(props: {
   toggleable: boolean
   open: boolean
@@ -179,14 +186,15 @@ export function TextPart(props: {
   const theme = useTheme()
   const { currentSyntax: syntax } = useThemes()
   const plugins = usePlugin()
+  const content = createMemo(() => assistantContent(props.part.text))
   return (
-    <Show when={props.part.text.trim()}>
+    <Show when={content()}>
       <box paddingLeft={3} flexShrink={0}>
         {/* Configure custom nodes before parsing; apply content before streaming so completion keeps the final tokens. */}
         <markdown
           syntaxStyle={syntax()}
           renderNode={plugins.markdown()}
-          content={props.part.text.trim()}
+          content={content()}
           streaming={props.message.time.completed === undefined}
           internalBlockMode="top-level"
           tableOptions={{ style: "grid", cellPaddingX: 1 }}

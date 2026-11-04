@@ -1,0 +1,22 @@
+diff --git a/dist/NodeHttpServer.js b/dist/NodeHttpServer.js
+index 1d5aa0b8d5ac7e264d1b60ed980f02c0029bb53d..0f66cfa4ad9bdbef3f5608b61da1d38c746d84c6 100644
+--- a/dist/NodeHttpServer.js
++++ b/dist/NodeHttpServer.js
+@@ -72,7 +72,7 @@ import * as NodeHttpPlatform from "./NodeHttpPlatform.js";
+ import * as NodeMultipart from "./NodeMultipart.js";
+ import * as NodeServices from "./NodeServices.js";
+ import * as NodeStream from "./NodeStream.js";
+-import * as NodeWS from "./NodeWS.js";
++import { WebSocketServer } from "ws";
+ /**
+  * Creates a scoped `HttpServer` from a Node `http.Server` or `node:http2`
+  * server, starts listening with the supplied options, registers request and
+@@ -163,7 +163,7 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (evaluate, options)
+     cause
+   })));
+   const boundAddress = yield* effectAddress;
+-  const wss = yield* Effect.acquireRelease(Effect.sync(() => new NodeWS.WebSocketServer({
++  const wss = yield* Effect.acquireRelease(Effect.sync(() => new WebSocketServer({
+     ...options.websocket,
+     noServer: true
+   })), wss => Effect.callback(resume => {
