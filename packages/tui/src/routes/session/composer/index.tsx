@@ -18,6 +18,27 @@ export type ComposerProps = {
   visibleTerminalID?: string
 }
 
+function ComposerHintText(props: { label: string; shortcut: string; onRun?: () => void }) {
+  const theme = useTheme()
+  const [hovered, setHovered] = createSignal(false)
+  const clickable = () => props.onRun !== undefined
+  return (
+    <text
+      fg={hovered() && clickable() ? theme.text.action.primary.hovered : theme.text.muted}
+      onMouseOver={() => setHovered(true)}
+      onMouseOut={() => setHovered(false)}
+      onMouseUp={() => {
+        if (hovered()) props.onRun?.()
+      }}
+    >
+      <span style={{ fg: theme.text.base }}>
+        <b>{props.label}</b>{" "}
+      </span>
+      <span style={{ fg: theme.text.muted }}>{props.shortcut}</span>
+    </text>
+  )
+}
+
 export function Composer(props: ComposerProps) {
   const theme = useTheme()
 
@@ -30,6 +51,7 @@ export function Composer(props: ComposerProps) {
   const tabList = createMemo(() => Object.values(store.tabs))
   const activeTab = createMemo(() => tabList().find((t) => t.id === store.active))
   const footerHints = createMemo(() => activeTab()?.hints?.() ?? [])
+  const paneHint = createMemo(() => activeTab()?.paneHint?.())
 
   // Set active tab when opened
   createEffect(() => {
@@ -148,24 +170,29 @@ export function Composer(props: ComposerProps) {
             <Show when={props.terminals}>
               <TerminalsTab sessionID={props.sessionID} visibleTerminalID={props.visibleTerminalID} />
             </Show>
-            <box flexDirection="row" gap={2} paddingLeft={1} flexShrink={0}>
-              <For each={footerHints()}>
+            <box flexDirection="row" gap={2} justifyContent="space-between" paddingLeft={1} flexShrink={0}>
+              <box flexDirection="row" gap={2}>
+                <For each={footerHints()}>
+                  {(hint) => (
+                    <ComposerHintText
+                      label={hint.label}
+                      shortcut={hint.shortcut}
+                      onRun={hint.command ? () => keymap.dispatch(hint.command!) : undefined}
+                    />
+                  )}
+                </For>
+                <Show when={tabList().length > 1}>
+                  <ComposerHintText label="tabs" shortcut="←/→" onRun={() => switchTab(-1)} />
+                </Show>
+              </box>
+              <Show when={paneHint()}>
                 {(hint) => (
-                  <text>
-                    <span style={{ fg: theme.text.base }}>
-                      <b>{hint.label}</b>{" "}
-                    </span>
-                    <span style={{ fg: theme.text.muted }}>{hint.shortcut}</span>
-                  </text>
+                  <ComposerHintText
+                    label={hint().label}
+                    shortcut={hint().shortcut}
+                    onRun={hint().command ? () => keymap.dispatch(hint().command!) : undefined}
+                  />
                 )}
-              </For>
-              <Show when={tabList().length > 1}>
-                <text>
-                  <span style={{ fg: theme.text.base }}>
-                    <b>tabs</b>{" "}
-                  </span>
-                  <span style={{ fg: theme.text.muted }}>←/→</span>
-                </text>
               </Show>
             </box>
           </box>
