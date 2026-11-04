@@ -57,6 +57,7 @@ export function ReasoningPart(props: {
   const [expanded, setExpanded] = createSignal(false)
 
   const content = createMemo(() => reasoningContent(props.part))
+  const tag = createMemo(() => sectionTag(props.part.text))
   const isDone = createMemo(
     () => props.part.time?.completed !== undefined || props.message.time.completed !== undefined,
   )
@@ -99,6 +100,9 @@ export function ReasoningPart(props: {
               borderColor={theme.decrease(theme.background.base)}
               paddingLeft={inMinimal() ? 3 : 1}
             >
+              <Show when={tag()}>
+                <text fg={theme.text.muted}>{tag()}</text>
+              </Show>
               <code
                 filetype="markdown"
                 drawUnstyledText={false}
@@ -116,9 +120,40 @@ export function ReasoningPart(props: {
   )
 }
 
+// A context plugin asks the model to prefix each reply with a section tag. The tag is not Markdown:
+// it pushes block syntax off the line start, so headings, lists, quotes and tables parse as prose.
+// Rendering drops the tag from the block and shows it above instead, so the reader keeps the
+// address of the item. Stored text, the prompt cache and what the model sees stay as is.
+// A fenced block keeps its own text untouched: a line that looks like a tag there is content.
+function withoutSectionTags(text: string) {
+  let fence = ""
+  return text
+    .split("\n")
+    .map((line) => {
+      const result = fence ? line : line.replace(/^([ \t]*)\u00a7\d+\u00a7[ \t]*/, "$1")
+      const marker = result.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+      if (marker) {
+        if (!fence) fence = marker[1]!
+        else if (marker[1]![0] === fence[0] && marker[1]!.length >= fence.length && !marker[2]!.trim()) fence = ""
+      }
+      return result
+    })
+    .join("\n")
+}
+
+/** The tag that addresses this part, kept apart from the block so Markdown still starts a line. */
+export function sectionTag(text: string) {
+  const match = /^[ \t]*\u00a7\d+\u00a7/.exec(text)
+  return match ? match[0].trim() : undefined
+}
+
 export function reasoningContent(part: SessionMessageAssistantReasoning) {
   // OpenRouter encrypts some reasoning blocks; drop the placeholder.
-  return part.text.replace("[REDACTED]", "").trim()
+  return withoutSectionTags(part.text).replace("[REDACTED]", "").trim()
+}
+
+export function assistantContent(text: string) {
+  return withoutSectionTags(text).trim()
 }
 
 function ReasoningHeader(props: {
@@ -179,14 +214,19 @@ export function TextPart(props: {
   const theme = useTheme()
   const { currentSyntax: syntax } = useThemes()
   const plugins = usePlugin()
+  const content = createMemo(() => assistantContent(props.part.text))
+  const tag = createMemo(() => sectionTag(props.part.text))
   return (
-    <Show when={props.part.text.trim()}>
+    <Show when={content()}>
       <box paddingLeft={3} flexShrink={0}>
+        <Show when={tag()}>
+          <text fg={theme.text.muted}>{tag()}</text>
+        </Show>
         {/* Configure custom nodes before parsing; apply content before streaming so completion keeps the final tokens. */}
         <markdown
           syntaxStyle={syntax()}
           renderNode={plugins.markdown()}
-          content={props.part.text.trim()}
+          content={content()}
           streaming={props.message.time.completed === undefined}
           internalBlockMode="top-level"
           tableOptions={{ style: "grid", cellPaddingX: 1 }}
