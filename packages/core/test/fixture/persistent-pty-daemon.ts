@@ -196,6 +196,9 @@ export const fakeDaemon = Effect.fn(function* () {
     if (request.op === "get") {
       const found = find(request.id)
       if (!found) return { type: "error", message: `terminal ${String(request.id)} not found` }
+      // A terminal marked as disappearing answers one lookup as gone, so the write that follows never runs.
+      if (disappearAfterList.delete(`pty_persistent_${found.id}`))
+        return { type: "error", message: `terminal ${String(request.id)} not found` }
       return { type: "process", process: found }
     }
     if (request.op === "create_pty") {
@@ -223,6 +226,12 @@ export const fakeDaemon = Effect.fn(function* () {
     }
     if (request.op === "prepare_handoff")
       return { type: "handoff", ticket: "next", expires_at: Date.now() + handoffTTL.ms }
+    // The server's write feature: accept input for a live terminal without feeding a real shell.
+    if (request.op === "write") {
+      const found = find(request.id)
+      if (!found) return { type: "error", message: `terminal ${String(request.id)} not found` }
+      return { type: "ok" }
+    }
     if (request.op === "rename") {
       const found = find(request.id)
       if (!found?.pty) return { type: "error", message: "terminal not found" }
